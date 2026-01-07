@@ -13,9 +13,11 @@ public:
 
     std::vector<int> tiles;   // size = width * height
     std::vector<int> spawn;   // optional second layer
+    std::vector<int> collision; // collision layer CSV
 
     bool loadCSV(const std::string& path);
     bool loadSpawnCSV(const std::string& path);
+    bool loadColCSV(const std::string& path); // collision csv loader
     int getTile(int x, int y) const;
 
     // Spawn / object tile ids (map uses these tile values to indicate spawns)

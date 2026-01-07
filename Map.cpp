@@ -134,6 +134,12 @@ bool Map::isSolid(int tx, int ty)
     if (tx < 0 || ty < 0 || tx >= width || ty >= height)
         return true;
 
+    // Check collision layer only. If collision data isn't loaded fall back to tiles behavior
+    if (!collision.empty()) {
+        int c = collision[ty * width + tx];
+        return c != -1;
+    }
+
     int t = tiles[ty * width + tx];
     if (t == TRAP_TILE || t == FALLINGTRAP_TILE)
         return false;
@@ -224,5 +230,48 @@ bool Map::loadSpawnCSV(const std::string& path)
     }
 
     SDL_Log("Loaded spawn CSV: %dx%d", width, height);
+    return true;
+}
+
+bool Map::loadColCSV(const std::string& path)
+{
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        SDL_Log("Failed to open Collision CSV: %s", path.c_str());
+        return false;
+    }
+
+    collision.clear();
+    collision.reserve(width * height);
+
+    std::string line;
+    int row = 0;
+
+    while (std::getline(file, line))
+    {
+        std::stringstream ss(line);
+        std::string cell;
+        int col = 0;
+
+        while (std::getline(ss, cell, ','))
+        {
+            collision.push_back(std::stoi(cell));
+            col++;
+        }
+
+        if (col != width) {
+            SDL_Log("Collision CSV width mismatch at row %d", row);
+            return false;
+        }
+
+        row++;
+    }
+
+    if (row != height) {
+        SDL_Log("Collision CSV height mismatch");
+        return false;
+    }
+
+    SDL_Log("Loaded Collision CSV: %dx%d", width, height);
     return true;
 }

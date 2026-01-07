@@ -35,7 +35,7 @@ void MapObject::draw(SDL_Renderer* renderer, int camX, int camY, const Map& map)
     }
 }
 
-SDL_FRect MapObject::getRect() const
+SDL_FRect MapObject::getRect() 
 {
     return { x, y, float(w), float(h) };
 }

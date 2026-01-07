@@ -7,6 +7,6 @@ public:
         const std::string& spritePath,
         int tw,
         int th);
-
+        int jumpToken;
     void input(const bool* keys);
 };

@@ -13,7 +13,7 @@ public:
     virtual void update(GameObject& obj, Map& map);
     virtual void draw(SDL_Renderer* renderer, int camX, int camY, const Map& map) const;
 
-    SDL_FRect getRect() const;
+    SDL_FRect getRect();
     bool active = true;
 
     int getTileX() const { return tx; }

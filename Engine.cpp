@@ -148,10 +148,20 @@ void Engine::update()
         r->aiUpdate(*player, map);
 
     for (auto* f : fallT)
+    {
+        f->checkTrigger(*player);
         f->update(map);
-
+        for (auto* r : orc)
+            f->checkTrigger(*r);  
+    }
+        
     for (auto* o : objects)
+    {
         o->update(*player, map);
+        for (auto* r : orc)
+            o->update(*r, map);
+    }
+        
 }
 
 // --------------------------------------------------
@@ -168,7 +178,7 @@ void Engine::render()
     // ---- draw traps / objects ----
     for (auto* f : fallT)
         f->draw(renderer, camera.x, camera.y);
-
+    
     for (auto* o : objects)
         o->draw(renderer, camera.x, camera.y, map);
 
@@ -201,6 +211,8 @@ void Engine::loadLevel(int levelID)
     // ----------------------------------------
     map.loadCSV("Maps/" + std::string(name) + "_Tile Layer 1.csv");
     map.loadSpawnCSV("Maps/" + std::string(name) + "_Spawn Layer.csv");
+    // load collision layer if present      
+    map.loadColCSV("Maps/" + std::string(name) + "_Collision Layer.csv");
     map.loadTileset(renderer, "assets/Tiles/tileset.png");
 
     // ----------------------------------------

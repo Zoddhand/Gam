@@ -1,5 +1,6 @@
 #include "Player.h"
 #include <SDL3_image/SDL_image.h>
+#include <iostream>
 
 Player::Player(SDL_Renderer* renderer,
     const std::string& spritePath,
@@ -10,6 +11,7 @@ Player::Player(SDL_Renderer* renderer,
     // You can now safely access obj here
     obj.x = 50;
     obj.y = 100;
+    jumpToken = 2;
 }
 
 
@@ -40,10 +42,19 @@ void Player::input(const bool* keys) {
     else {
         obj.velx = 0;
     }
-
+    
+    if (obj.onGround) {
+        jumpToken = 2;
+    }
     // Jump (optional: only if not attacking)
-    if (keys[SDL_SCANCODE_SPACE] && obj.onGround && !obj.attacking) {
+    static bool jumpPressedLastFrame = false;
+
+    if (keys[SDL_SCANCODE_SPACE] && !jumpPressedLastFrame && !obj.attacking && jumpToken > 0)
+    {
         obj.vely = -5.5f;
         obj.onGround = false;
+        jumpToken--;
     }
+
+    jumpPressedLastFrame = keys[SDL_SCANCODE_SPACE];
 }
