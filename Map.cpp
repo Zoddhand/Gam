@@ -2,6 +2,8 @@
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <iostream>
+#include <fstream>
+#include <sstream>
 
 Map::Map()
 {
@@ -28,28 +30,58 @@ bool Map::loadTileset(SDL_Renderer* renderer, const std::string& path)
 
 void Map::draw(SDL_Renderer* renderer, int camX, int camY)
 {
-    if (!tilesetTexture) {
-        // No tileset; draw simple colored grid so level is visible
-        for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++)
-                if (tiles[y][x] >= 0) // now 0 is first tile
-                {
-                    SDL_FRect r{ float(x * TILE_SIZE - camX), float(y * TILE_SIZE), TILE_SIZE, TILE_SIZE };
-                    SDL_SetRenderDrawColor(renderer, 100, 120, 255, 255);
-                    SDL_RenderFillRect(renderer, &r);
-                }
+    // --------------------------------------------------
+    // Fallback: draw simple colored tiles if no tileset
+    // --------------------------------------------------
+    if (!tilesetTexture)
+    {
+        SDL_SetRenderDrawColor(renderer, 100, 120, 255, 255);
+
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                int tileIndex = tiles[y * width + x];
+                if (tileIndex < 0)
+                    continue;
+
+                SDL_FRect r{
+                    float(x * TILE_SIZE - camX),
+                    float(y * TILE_SIZE - camY),
+                    float(TILE_SIZE),
+                    float(TILE_SIZE)
+                };
+
+                SDL_RenderFillRect(renderer, &r);
+            }
+        }
         return;
     }
 
-    SDL_FRect dest{ 0,0,float(TILE_SIZE), float(TILE_SIZE) };
-    SDL_FRect src{ 0,0,float(TILE_SIZE), float(TILE_SIZE) };
+    // --------------------------------------------------
+    // Normal tileset rendering
+    // --------------------------------------------------
+    SDL_FRect src{
+        0.0f,
+        0.0f,
+        float(TILE_SIZE),
+        float(TILE_SIZE)
+    };
 
-    for (int y = 0; y < height; y++)
+    SDL_FRect dest{
+        0.0f,
+        0.0f,
+        float(TILE_SIZE),
+        float(TILE_SIZE)
+    };
+
+    for (int y = 0; y < height; ++y)
     {
-        for (int x = 0; x < width; x++)
+        for (int x = 0; x < width; ++x)
         {
-            int tileIndex = tiles[y][x];
-            if (tileIndex < 0) continue; // -1 is walkable
+            int tileIndex = tiles[y * width + x];
+            if (tileIndex < 0)
+                continue; // walkable / empty
 
             int tx = tileIndex % tileCols;
             int ty = tileIndex / tileCols;
@@ -65,30 +97,132 @@ void Map::draw(SDL_Renderer* renderer, int camX, int camY)
     }
 }
 
+
 std::vector<Map::ObjectSpawn> Map::getObjectSpawns() const
 {
     std::vector<ObjectSpawn> out;
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            int t = spawn[y][x];
-            // include any spawn types you want the engine to instantiate
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            int t = spawn[y * width + x];
+            if (t < 0)
+                continue;
+
+            // Include any spawn types you want the engine to instantiate
             if (t == SPAWN_PLAYER ||
                 t == SPAWN_ORC ||
                 t == SPAWN_FALLINGTRAP ||
                 t == SPAWN_SPIKES)
             {
-                out.push_back({ x, y, t });
+                out.push_back({
+                    x,   // tile X
+                    y,   // tile Y
+                    t    // spawn tile value
+                    });
             }
         }
     }
+
     return out;
 }
 
+
 bool Map::isSolid(int tx, int ty)
 {
-    if (tx < 0 || ty < 0 || tx >= width || ty >= height) return true;
-    // trap and chest tiles are treated as non-solid so actors can step on them
-    int t = tiles[ty][tx];
-    if (t == TRAP_TILE || t == FALLINGTRAP_TILE) return false;
-    return tiles[ty][tx] != -1; // only -1 is walkable
+    if (tx < 0 || ty < 0 || tx >= width || ty >= height)
+        return true;
+
+    int t = tiles[ty * width + tx];
+    if (t == TRAP_TILE || t == FALLINGTRAP_TILE)
+        return false;
+
+    return t != -1;
+}
+
+
+int Map::getTile(int x, int y) const {
+    if (x < 0 || y < 0 || x >= width || y >= height)
+        return -1;
+    return tiles[y * width + x];
+}
+
+bool Map::loadCSV(const std::string& path)
+{
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        SDL_Log("Failed to open map CSV: %s", path.c_str());
+        return false;
+    }
+        
+    tiles.clear();
+    width = 0;
+    height = 0;
+
+    std::string line;
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string cell;
+        int rowWidth = 0;
+
+        while (std::getline(ss, cell, ',')) {
+            tiles.push_back(std::stoi(cell));
+            rowWidth++;
+        }
+
+        if (width == 0)
+            width = rowWidth;
+        else if (rowWidth != width) {
+            SDL_Log("CSV row width mismatch!");
+            return false;
+        }
+
+        height++;
+    }
+
+    return true;
+}
+
+bool Map::loadSpawnCSV(const std::string& path)
+{
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        SDL_Log("Failed to open spawn CSV: %s", path.c_str());
+        return false;
+    }
+
+    spawn.clear();
+    spawn.reserve(width * height);
+
+    std::string line;
+    int row = 0;
+
+    while (std::getline(file, line))
+    {
+        std::stringstream ss(line);
+        std::string cell;
+        int col = 0;
+
+        while (std::getline(ss, cell, ','))
+        {
+            spawn.push_back(std::stoi(cell));
+            col++;
+        }
+
+        if (col != width) {
+            SDL_Log("Spawn CSV width mismatch at row %d", row);
+            return false;
+        }
+
+        row++;
+    }
+
+    if (row != height) {
+        SDL_Log("Spawn CSV height mismatch");
+        return false;
+    }
+
+    SDL_Log("Loaded spawn CSV: %dx%d", width, height);
+    return true;
 }

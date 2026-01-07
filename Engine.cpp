@@ -1,158 +1,342 @@
-#include "Engine.h"
+﻿#include "Engine.h"
 #include "Spikes.h"
-#include "FallingTrap.h"
-#include "Orc.h"
 #include <SDL3/SDL.h>
+#include <cstdio>
 #include <iostream>
 
-// --------------------------- Main ---------------------------
-
-int main(int, char**) {
+int main(int argc, char* argv[])
+{
     Engine engine;
-    while (engine.running) {
+
+    // Load starting room
+    engine.loadLevel(engine.currentLevelID);
+
+    while (engine.running)
+    {
         engine.handleEvents();
         engine.update();
         engine.render();
-        SDL_Delay(16);
+        SDL_Delay(16); // ~60 FPS
     }
+
     return 0;
 }
 
-// ------------------------ Engine ---------------------------
+// --------------------------------------------------
 
-Engine::Engine() {
+Engine::Engine()
+{
     SDL_Init(SDL_INIT_VIDEO);
-    window = SDL_CreateWindow("SDL3 Platformer",SCREEN_W * 2, SCREEN_H * 2, SDL_WINDOW_BORDERLESS);
+    window = SDL_CreateWindow("Platformer", SCREEN_W * 2, SCREEN_H * 2, SDL_WINDOW_BORDERLESS);
     renderer = SDL_CreateRenderer(window, nullptr);
-    SDL_SetRenderLogicalPresentation(renderer, SCREEN_W, SCREEN_H,SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
+
+    SDL_SetRenderLogicalPresentation(renderer, SCREEN_W, SCREEN_H, SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
     SDL_SetRenderScale(renderer, VIEW_SCALE, VIEW_SCALE);
 
-    float sx = 0.0f, sy = 0.0f;
+    float sx, sy;
     SDL_GetRenderScale(renderer, &sx, &sy);
     SDL_Log("Render scale = %f x %f", sx, sy);
+}
 
-    // Load tileset first so we can read object spawn data from the map
-    if (!map.loadTileset(renderer, "assets/Tiles/tileset.png")) {
-        SDL_Log("Failed to load tileset!");
+Engine::~Engine()
+{
+    cleanupObjects();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+}
+
+// --------------------------------------------------
+
+void Engine::cleanupObjects()
+{
+    delete player; player = nullptr;
+    for (auto* o : orc) delete o; orc.clear();
+    for (auto* f : fallT) delete f; fallT.clear();
+    for (auto* o : objects) delete o; objects.clear();
+}
+
+// --------------------------------------------------
+
+int Engine::getNextLevelID(int dir)
+{
+    int r = currentLevelID / GRID_COLS;
+    int c = currentLevelID % GRID_COLS;
+
+    if (dir == LEFT)  c--;
+    if (dir == RIGHT) c++;
+    if (dir == UP)    r--;
+    if (dir == DOWN)  r++;
+
+    if (r < 0 || r >= GRID_ROWS || c < 0 || c >= GRID_COLS)
+        return -1;
+
+    return levelGrid[r][c];
+}
+
+// --------------------------------------------------
+
+void Engine::handleEvents()
+{
+    SDL_Event e;
+    while (SDL_PollEvent(&e))
+        if (e.type == SDL_EVENT_QUIT)
+            running = false;
+
+    const bool* keys = SDL_GetKeyboardState(nullptr);
+    if (player) player->input(keys);
+}
+
+// --------------------------------------------------
+int t1 = 0;
+int t2 = 0;
+void Engine::update()
+{
+    if (!transitioning && player)
+    {
+        int tx = int(player->obj.x) / TILE_SIZE;
+        int ty = int(player->obj.y) / TILE_SIZE;
+
+        if (tx >= 0 && ty >= 0 && tx < map.width && ty < map.height)
+        {
+            int t = map.spawn[ty * map.width + tx];
+            if (t == LEFT || t == RIGHT || t == UP || t == DOWN)
+            {
+                pendingLevelID = getNextLevelID(t);
+                if (pendingLevelID != -1)
+                {
+                    entryDirection = t;
+                    transitioning = true;
+                    transitionTimer = TRANSITION_DURATION;
+                }
+            }
+        }
     }
 
-    // Spawn gameobjects from the map's object layer (tile values indicate what to spawn)
-    player = nullptr;
+    if (transitioning)
+    {
+        transitionTimer -= 0.016f;
+        if (transitionTimer <= 0.0f)
+        {
+            loadLevel(pendingLevelID);
+            transitioning = false;
+        }
+    }
+
+    if (!player) return;
+    if (player->obj.alive)
+        player->update(map);
+    else
+    {
+        player->obj.alive = true;
+        if (lastStartPosX != 0)
+        {
+           t1 = lastStartPosX;
+           t2 = lastStartPosY;
+        }
+        loadLevel(currentLevelID);
+        player->obj.x = t1;
+        player->obj.y = t2;
+    }
+
+    camera.update(player->obj.x, player->obj.y,
+        map.width, SCREEN_W,
+        map.height, SCREEN_H,
+        TILE_SIZE, VIEW_SCALE);
+
+    for (auto* r : orc)
+        r->aiUpdate(*player, map);
+
+    for (auto* f : fallT)
+        f->update(map);
+
+    for (auto* o : objects)
+        o->update(*player, map);
+}
+
+// --------------------------------------------------
+
+void Engine::render()
+{
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+
+    map.draw(renderer, camera.x, camera.y);
+    for (auto* o : orc)
+        o->draw(renderer, camera.x, camera.y);
+
+    // ---- draw traps / objects ----
+    for (auto* f : fallT)
+        f->draw(renderer, camera.x, camera.y);
+
+    for (auto* o : objects)
+        o->draw(renderer, camera.x, camera.y, map);
+
+    if (player) player->draw(renderer, camera.x, camera.y);
+
+    if (transitioning)
+    {
+        float a = 255.0f * (transitionTimer / TRANSITION_DURATION);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, (Uint8)a);
+        SDL_RenderFillRect(renderer, &transitionRect);
+    }
+
+    SDL_RenderPresent(renderer);
+}
+
+// --------------------------------------------------
+
+void Engine::loadLevel(int levelID)
+{
+    // ----------------------------------------
+    // Cleanup previous level
+    // ----------------------------------------
+    cleanupObjects();
+
+    char name[8];
+    snprintf(name, sizeof(name), "%03d", levelID);
+
+    // ----------------------------------------
+    // Load map data
+    // ----------------------------------------
+    map.loadCSV("Maps/" + std::string(name) + "_Tile Layer 1.csv");
+    map.loadSpawnCSV("Maps/" + std::string(name) + "_Spawn Layer.csv");
+    map.loadTileset(renderer, "assets/Tiles/tileset.png");
+
+    // ----------------------------------------
+    // Determine PLAYER spawn position
+    // ----------------------------------------
+    float spawnX = 0.0f;
+    float spawnY = 0.0f;
+    bool placed = false;
+
+    int portalToFind = -1;
+    if (entryDirection == LEFT)  portalToFind = RIGHT;
+    if (entryDirection == RIGHT) portalToFind = LEFT;
+    if (entryDirection == UP)    portalToFind = DOWN;
+    if (entryDirection == DOWN)  portalToFind = UP;
+
+    // 1️⃣ Spawn relative to opposite portal
+    if (portalToFind != -1)
+    {
+        for (int y = 0; y < map.height && !placed; y++)
+        {
+            for (int x = 0; x < map.width && !placed; x++)
+            {
+                if (map.spawn[y * map.width + x] == portalToFind)
+                {
+                    spawnX = float(x * TILE_SIZE);
+                    spawnY = float(y * TILE_SIZE);
+
+                    // Offset INTO the room
+                    if (portalToFind == LEFT)  spawnX += TILE_SIZE;
+                    if (portalToFind == RIGHT) spawnX -= TILE_SIZE;
+                    if (portalToFind == UP)    spawnY += TILE_SIZE;
+                    if (portalToFind == DOWN)  spawnY -= TILE_SIZE;
+
+                    placed = true;
+
+                    SDL_Log("Portal %d at (%d,%d) -> spawn (%f,%f)",
+                        portalToFind, x, y, spawnX, spawnY);
+                }
+            }
+        }
+    }
+
+    // 2️⃣ Fallback to SPAWN_PLAYER
+    if (!placed)
+    {
+        for (int y = 0; y < map.height && !placed; y++)
+        {
+            for (int x = 0; x < map.width && !placed; x++)
+            {
+                if (map.spawn[y * map.width + x] == Map::SPAWN_PLAYER)
+                {
+                    spawnX = float(x * TILE_SIZE);
+                    spawnY = float(y * TILE_SIZE);
+                    placed = true;
+                }
+            }
+        }
+    }
+    
+    SDL_Log("Spawning player at (%f,%f)", spawnX, spawnY);
+
+    // ----------------------------------------
+    // Create PLAYER (ENGINE-OWNED)
+    // ----------------------------------------
+    player = new Player(renderer, "Assets/Sprites/player.png", 12, 16);
+    player->obj.x = spawnX;
+    player->obj.y = spawnY;
+    //player->obj.canMove = true;
+
+    setPlayerFacingFromEntry(entryDirection);
+
+    // ----------------------------------------
+    // Spawn MAP OBJECTS (NOT PLAYER)
+    // ----------------------------------------
     auto spawns = map.getObjectSpawns();
-    for (const auto& s : spawns) {
+    for (const auto& s : spawns)
+    {
         float px = float(s.x * Map::TILE_SIZE);
         float py = float(s.y * Map::TILE_SIZE);
 
-        switch (s.tileIndex) {
+        switch (s.tileIndex)
+        {
         case Map::SPAWN_PLAYER:
-            if (!player) {
-                player = new Player(renderer, "Assets/Sprites/player.png", 12, 16);
-                player->obj.x = px;
-                player->obj.y = py;
-            } else {
-                // multiple player spawns: ignore extras or log / choose earliest
-            }
+            // 🚫 Player already handled
             break;
 
         case Map::SPAWN_ORC:
-            orc.push_back(new Orc(renderer, "Assets/Sprites/enemy.png", 12, 16, px, py));
+            orc.push_back(new Orc(
+                renderer,
+                "Assets/Sprites/enemy.png",
+                12, 16,
+                px, py
+            ));
             break;
 
         case Map::SPAWN_FALLINGTRAP:
-            // FallingTrap ctor expects tile coords in this codebase
             fallT.push_back(new FallingTrap(renderer, s.x, s.y));
             break;
 
         case Map::SPAWN_SPIKES:
             objects.push_back(new Spikes(s.x, s.y, s.tileIndex));
             break;
-
-        default:
-            break;
         }
     }
 
-    // Fallback: if map did not provide a player spawn, create a default player
-    if (!player) {
-        player = new Player(renderer, "Assets/Sprites/player.png", 12, 16);
-    }
-
-    // (Optional) keep any manual spawns you still want � currently everything is map-driven
+    // ----------------------------------------
+    // Finalize level state
+    // ----------------------------------------
+    currentLevelID = levelID;
+    entryDirection = -1;
+    lastStartPosX = spawnX;
+    lastStartPosY = spawnY;
 }
 
-Engine::~Engine() {
-    delete player;
-    for (Orc* o : orc)
-        delete o;
-    for (MapObject* obj : objects)
-        delete obj;
-    for (FallingTrap* f : fallT)
-        delete f;
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-}
 
-void Engine::handleEvents() {
-    SDL_Event e;
-    while (SDL_PollEvent(&e)) {
-        if (e.type == SDL_EVENT_QUIT) running = false;
-    }
-
-    const bool* keys = SDL_GetKeyboardState(nullptr);
-    player->input(keys);
-    if (keys[SDL_SCANCODE_3]) {
-        VIEW_SCALE = 2.0f;
-        SDL_SetRenderScale(renderer, VIEW_SCALE, VIEW_SCALE);
-
-    }
-    else if (keys[SDL_SCANCODE_2]) {
-        VIEW_SCALE = 1.5f;    SDL_SetRenderScale(renderer, VIEW_SCALE, VIEW_SCALE);
-
-    }
-    else if (keys[SDL_SCANCODE_1]) {
-        VIEW_SCALE = 1.0f;
-        SDL_SetRenderScale(renderer, VIEW_SCALE, VIEW_SCALE);
-    }
-}
-
-void Engine::update() {
-    if(!player->obj.alive)
-        running = false;
-    player->update(map);
-    for (FallingTrap* f : fallT)
+void Engine::setPlayerFacingFromEntry(int entryTile)
+{
+    switch (entryTile)
     {
-        f->checkTrigger(*player);
-        f->update(map);
+    case 96: // came from LEFT
+        player->obj.facing = false;
+        break;
+
+    case 98: // came from RIGHT
+        player->obj.facing = true;
+        break;
+
+    case 97: // came from UP
+        // optional – keep previous or face down
+        break;
+
+    case 99: // came from DOWN
+        // optional – keep previous or face up
+        break;
+
+    default:
+        break;
     }
-    for (Orc* o : orc)
-        o->aiUpdate(*player, map);
-
-    // update map objects
-    for (MapObject* obj : objects)
-    {
-        obj->update(*player, map);
-        for (Orc* o : orc)
-            obj->update(*o, map);
-    }
-
-    camera.update(player->obj.x, player->obj.y, map.width, SCREEN_W, map.height, SCREEN_H, TILE_SIZE, VIEW_SCALE);
-}
-
-void Engine::render() {
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderClear(renderer);
-
-    map.draw(renderer, camera.x, camera.y);
-
-    // draw objects (e.g. traps/chests) between map and actors or above map as you prefer
-    for (MapObject* obj : objects)
-        obj->draw(renderer, camera.x, camera.y, map);
-
-    player->draw(renderer, camera.x, camera.y);
-    for (FallingTrap* f : fallT)
-        f->draw(renderer, camera.x, camera.y);
-    for (Orc* o : orc)
-        o->draw(renderer, camera.x, camera.y);
-    SDL_RenderPresent(renderer);
 }
