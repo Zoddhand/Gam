@@ -33,6 +33,8 @@ public:
     AnimationManager* animWalk;
     AnimationManager* animAttack;
     AnimationManager* currentAnim;
+    AnimationManager* animFlash; // flashing sprite animation
+    AnimationManager* animPrev;  // saved animation to restore after flash
 
 public:
     GameObject(SDL_Renderer* renderer, const std::string& spritePath, int tw, int th);
@@ -53,9 +55,9 @@ public:
     void takeDamage(float amount, float attackerX, int flashes = 3, int intervalTicks = 6, int invulnTicks = 30, float kbX = 2.5f, float kbY = -4.0f, int kbTicks = 12);
 
 protected:
-    // Flashing (red overlay) state
-    bool flashing = false;
-    bool flashOn = false;        // whether the red overlay is currently visible
+    // Flashing state
+    bool flashing = false; // whether flash sequence active
+    bool flashOn = false;        // whether flashing animation is currently active
     int flashInterval = 6;      // ticks per on/off phase
     int flashTicksLeft = 0;     // ticks remaining in current phase
     int flashCyclesLeft = 0;    // number of remaining visible pulses

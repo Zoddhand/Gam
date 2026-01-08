@@ -13,7 +13,9 @@ public:
     void shutdown();
 
     bool loadWav(const std::string& id, const std::string& path);
-    void playSfx(const std::string& id, int volume = 128);
+    // allowOverlap=false prevents starting a new instance while one is playing
+    // minIntervalMs specifies minimum milliseconds between plays of the same id (0 = no limit)
+    void playSfx(const std::string& id, int volume = 128, bool allowOverlap = false, int minIntervalMs = 0);
     void stopSfx(const std::string& id);
     void stopAllSfx();
     void playMusic(const std::string& id, bool loop = true, int volume = 128);
@@ -43,8 +45,11 @@ private:
     int deviceSampleFrames = 0;
 
     std::vector<SDL_AudioStream*> activeStreams;
-    // Track which SFX id is currently playing (no overlap per id)
-    std::unordered_map<std::string, SDL_AudioStream*> playingSfx;
+    // Track which SFX ids are currently playing (allow multiple streams per id)
+    std::unordered_map<std::string, std::vector<SDL_AudioStream*>> playingSfx;
+
+    // track last play time (ms) for each sfx id to enforce min interval
+    std::unordered_map<std::string, Uint32> lastPlayTimeMs;
 
     // music-specific
     SDL_AudioStream* musicStream = nullptr;

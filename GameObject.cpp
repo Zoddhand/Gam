@@ -20,6 +20,8 @@ GameObject::GameObject(SDL_Renderer* renderer, const std::string& spritePath, in
     animIdle = new AnimationManager(tex, 100, 100, 6, 0, 44, 42, obj.tileWidth, obj.tileHeight);
     animWalk = new AnimationManager(tex, 100, 100, 8, 100, 44, 42, obj.tileWidth, obj.tileHeight);
     animAttack = new AnimationManager(tex, 100, 100, 9, 200, 44, 42, obj.tileWidth, obj.tileHeight);
+    animFlash = new AnimationManager(tex, 100, 100, 4, 500, 44, 42, obj.tileWidth, obj.tileHeight);
+    animPrev = animIdle;
     currentAnim = animIdle;
 
 }
@@ -51,29 +53,7 @@ void GameObject::draw(SDL_Renderer* renderer, int camX, int camY) {
         // Render the sprite normally
         SDL_RenderTextureRotated(renderer, currentAnim->getTexture(), &src, &dst, 0.0, nullptr, flip);
 
-        // If flashing and currently in the "on" phase, draw a semi-transparent red overlay
-        if (flashing && flashOn) {
-            // Compute inner sprite rectangle in destination space (account for horizontal flip)
-            int innerX = currentAnim->getInnerX();
-            if (currentAnim->flipped) {
-                innerX = currentAnim->frameWidth - currentAnim->getInnerX() - currentAnim->getInnerW();
-            }
-
-            SDL_FRect innerDst;
-            innerDst.x = dst.x + innerX * scaleX;
-            innerDst.y = dst.y + currentAnim->getInnerY() * scaleY;
-            innerDst.w = currentAnim->getInnerW() * scaleX;
-            innerDst.h = currentAnim->getInnerH() * scaleY;
-
-            // Ensure blending is enabled for the overlay
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            // Semi-transparent red (alpha ~ 120)
-            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 120);
-            SDL_RenderFillRect(renderer, &innerDst);
-            // Restore draw color to opaque white for subsequent rendering
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        }
-        
+        // flashing overlay removed; animation swap will show flashing sprite when active
     }
 
 void GameObject::update(Map& map)
@@ -149,29 +129,43 @@ void GameObject::update(Map& map)
     // --------------------
     // Animation selection
     // --------------------
-    if (obj.attacking) {
-        currentAnim = animAttack;
-        currentAnim->setSpeed(obj.attSpeed);
-    }
-    else if (obj.velx != 0) {
-        currentAnim = animWalk;
-        currentAnim->setSpeed(10);
-    }
-    else {
-        currentAnim = animIdle;
-        currentAnim->setSpeed(10);
+    if (flashing && flashOn) {
+        // swap to flashing animation (save previous)
+        if (currentAnim != animFlash) {
+            animPrev = currentAnim;
+            currentAnim = animFlash;
+        }
+    } else {
+        // not currently showing flash animation
+        if (animPrev && currentAnim == animFlash) {
+            currentAnim = animPrev;
+            animPrev = nullptr;
+        }
+
+        if (obj.attacking) {
+            currentAnim = animAttack;
+            currentAnim->setSpeed(obj.attSpeed);
+        }
+        else if (obj.velx != 0) {
+            currentAnim = animWalk;
+            currentAnim->setSpeed(10);
+        }
+        else {
+            currentAnim = animIdle;
+            currentAnim->setSpeed(10);
+        }
     }
 
     currentAnim->setFlip(!obj.facing);
     currentAnim->update();
 
     // --------------------
-    // Flashing update (red overlay pulses)
+    // Flashing update (swap animation pulses)
     // --------------------
     if (flashing) {
         if (--flashTicksLeft <= 0) {
             if (flashOn) {
-                // turn overlay off for the off-phase
+                // turn flash animation off for the off-phase
                 flashOn = false;
                 flashTicksLeft = flashInterval;
             } else {
@@ -180,6 +174,11 @@ void GameObject::update(Map& map)
                 if (flashCyclesLeft <= 0) {
                     // finished all pulses
                     flashing = false;
+                    // ensure we restore previous animation next frame
+                    if (animPrev && currentAnim == animFlash) {
+                        currentAnim = animPrev;
+                        animPrev = nullptr;
+                    }
                 } else {
                     // start next visible phase
                     flashOn = true;

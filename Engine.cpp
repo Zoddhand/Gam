@@ -77,6 +77,8 @@ Engine::Engine()
         sound->loadWav("attack3", "Assets/Sound/attack3.wav");
         sound->loadWav("death", "Assets/Sound/death.wav");
         sound->loadWav("heartbeat", "Assets/Sound/heartbeat.wav");
+        sound->loadWav("fallTrapRelease", "Assets/Sound/fallTrapRelease.wav");
+        sound->loadWav("fallTrapLand", "Assets/Sound/fallTrapLand.wav");
         sound->playMusic("music", true, 32);
     }
 
@@ -224,14 +226,14 @@ void Engine::update()
            t1 = lastStartPosX;
            t2 = lastStartPosY;
         }
+        currentLevelID = 45;
         loadLevel(currentLevelID);
-        player->obj.x = t1;
-        player->obj.y = t2;
 		player->obj.health = player->obj.maxHealth;
 		sound->stopSfx("heartbeat");
+		inMenu = true;
     }
 
-    if (player->obj.health <= 20)
+    if (player->obj.health <= 39)
         sound->playSfx("heartbeat");
 
     camera.update(player->obj.x, player->obj.y,
@@ -405,7 +407,7 @@ void Engine::loadLevel(int levelID)
             break;
 
         case Map::SPAWN_ORC:
-            orc.push_back(new Orc(renderer,"Assets/Sprites/enemy.png",12, 16,px, py , 20));
+            orc.push_back(new Orc(renderer,"Assets/Sprites/orc.png",12, 16,px, py , 20));
             break;
 
         case Map::SPAWN_SKELETON:

@@ -33,7 +33,8 @@ void Hud::draw(SDL_Renderer* renderer, float health, float maxHealth)
 
     SDL_FRect src{ float(frame * frameW), 0.0f, float(frameW), float(frameH) };
     // Scale up 2x
-    SDL_FRect dst{ 4.0f, 4.0f, float(frameW), float(frameH) };
+    SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
+    SDL_FRect dst{ 4.0f, 4.0f, float(frameW) * 1.5f, float(frameH) * 1.5f };
 
     SDL_RenderTexture(renderer, tex, &src, &dst);
 }

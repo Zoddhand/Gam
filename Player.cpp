@@ -51,7 +51,8 @@ void Player::input(const bool* keys) {
     if (obj.onGround) {
         jumpToken = 2;
 		if (obj.velx != 0 && !obj.attacking) {
-            gSound->playSfx("step");
+            // prevent rapid retriggering: no overlap, min interval 200ms
+            gSound->playSfx("step", 128, false, 100);
         }
     }
     // Jump (optional: only if not attacking)

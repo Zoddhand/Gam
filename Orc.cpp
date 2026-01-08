@@ -104,7 +104,6 @@ void Orc::aiUpdate(Player& player, Map& map)
     // Apply physics + animation
     // --------------------
     GameObject::update(map);
-
     // --------------------
     // Die if hit
     // --------------------
@@ -114,7 +113,7 @@ void Orc::aiUpdate(Player& player, Map& map)
 
         if (SDL_HasRectIntersectionFloat(&atk, &me)) {
             float playerCenter = player.obj.x + player.obj.tileWidth * 0.5f;
-            takeDamage(50.0f, playerCenter, 3, 6, 30, 2.5f, -4.0f);
+            takeDamage(35.0f, playerCenter, 3, 6, 30, 2.5f, -4.0f);
         }
     }
     else if (obj.attacking) {

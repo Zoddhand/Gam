@@ -1,5 +1,6 @@
 #include "FallingTrap.h"
 #include "GameObject.h"
+#include "Sound.h"
 #include <iostream>
 
 FallingTrap::FallingTrap(SDL_Renderer* renderer, int tileX, int tileY)
@@ -39,6 +40,7 @@ void FallingTrap::update(Map& map) {
         if (--delayTimer <= 0) {
             falling = true;
             velY = 0.5f;
+            if (gSound) gSound->playSfx("fallTrapRelease", 128, true);
         }
         return;
     }
@@ -76,6 +78,7 @@ void FallingTrap::update(Map& map) {
         falling = false;
         triggered = false;
         finishedFalling = true;
+        if (gSound) gSound->playSfx("fallTrapLand", 128, true);
     }
 }
 
