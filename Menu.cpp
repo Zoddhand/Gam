@@ -55,25 +55,51 @@ void Menu::handleInput(const bool* keys) {
     bool down = keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN];
     bool enter = keys[SDL_SCANCODE_RETURN] || keys[SDL_SCANCODE_SPACE];
 
-    if (up && !upLast) {
+    if (up && !upLastKbd) {
         if (state == State::Main)
             selected = (selected - 1 + (int)options.size()) % (int)options.size();
         else
             selected = (selected - 1 + (int)optOptions.size()) % (int)optOptions.size();
     }
-    if (down && !downLast) {
+    if (down && !downLastKbd) {
         if (state == State::Main)
             selected = (selected + 1) % (int)options.size();
         else
             selected = (selected + 1) % (int)optOptions.size();
     }
-    if (enter && !enterLast) {
+    if (enter && !enterLastKbd) {
         activated = true;
     }
 
-    upLast = up;
-    downLast = down;
-    enterLast = enter;
+    upLastKbd = up;
+    downLastKbd = down;
+    enterLastKbd = enter;
+}
+
+void Menu::handleInput(const Controller::State& cs) {
+    bool up = cs.up;
+    bool down = cs.down;
+    bool enter = cs.attack || cs.jump; // accept attack or jump as select
+
+    if (up && !upLastCtrl) {
+        if (state == State::Main)
+            selected = (selected - 1 + (int)options.size()) % (int)options.size();
+        else
+            selected = (selected - 1 + (int)optOptions.size()) % (int)optOptions.size();
+    }
+    if (down && !downLastCtrl) {
+        if (state == State::Main)
+            selected = (selected + 1) % (int)options.size();
+        else
+            selected = (selected + 1) % (int)optOptions.size();
+    }
+    if (enter && !enterLastCtrl) {
+        activated = true;
+    }
+
+    upLastCtrl = up;
+    downLastCtrl = down;
+    enterLastCtrl = enter;
 }
 
 void Menu::update() {

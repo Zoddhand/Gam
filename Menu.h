@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <SDL3_ttf/SDL_ttf.h>
+#include "Player.h" // for Controller::State
 
 class Menu {
 public:
@@ -10,6 +11,7 @@ public:
     ~Menu();
 
     void handleInput(const bool* keys);
+    void handleInput(const Controller::State& cs); // controller overload
     void update();
     void render(SDL_Renderer* renderer);
 
@@ -24,10 +26,14 @@ private:
     int selected = 0;
     bool activated = false;
 
-    // simple keyboard edge detection
-    bool upLast = false;
-    bool downLast = false;
-    bool enterLast = false;
+    // simple keyboard edge detection (separate for keyboard + controller)
+    bool upLastKbd = false;
+    bool downLastKbd = false;
+    bool enterLastKbd = false;
+
+    bool upLastCtrl = false;
+    bool downLastCtrl = false;
+    bool enterLastCtrl = false;
 
     // font
     TTF_Font* font = nullptr;

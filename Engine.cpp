@@ -36,7 +36,7 @@ int main(int argc, char* argv[])
 Engine::Engine()
 {
     // Initialize video + audio subsystems
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD) != 0) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());
     }
 
@@ -49,6 +49,13 @@ Engine::Engine()
     float sx, sy;
     SDL_GetRenderScale(renderer, &sx, &sy);
     SDL_Log("Render scale = %f x %f", sx, sy);
+
+    // Try to open first controller (if present)
+    if (!controller.open(0)) {
+        SDL_Log("No controller opened (none present)");
+    } else {
+        SDL_Log("Controller opened");
+    }
 
     // Create HUD
     hud = new Hud(renderer, "Assets/Sprites/heart.png");
@@ -139,11 +146,27 @@ void Engine::handleEvents()
             running = false;
 
     const bool* keys = SDL_GetKeyboardState(nullptr);
+    // update controller polling every frame
+    controller.update();
+    auto cs = controller.getState();
+
     // Only forward input to player if movement is allowed
     if (!inMenu) {
-        if (player && !transitioning) player->input(keys);
+        if (player && !transitioning) {
+            // Prefer controller only if it is actively providing input; otherwise keyboard.
+            bool controllerActive = cs.connected && (cs.left || cs.right || cs.up || cs.down || cs.jump || cs.attack);
+            if (controllerActive) {
+                player->input(cs);
+            } else {
+                if (player) player->input(keys);
+            }
+        }
     } else {
-        if (menu) menu->handleInput(keys);
+        if (menu) {
+            // If controller connected, forward controller state to menu, otherwise keyboard
+            if (cs.connected) menu->handleInput(cs);
+            else menu->handleInput(keys);
+        }
     }
 }
 
@@ -229,11 +252,11 @@ void Engine::update()
         currentLevelID = 45;
         loadLevel(currentLevelID);
 		player->obj.health = player->obj.maxHealth;
-		sound->stopSfx("heartbeat");
+		if (sound) sound->stopSfx("heartbeat");
 		inMenu = true;
     }
 
-    if (player->obj.health <= 39)
+    if (player->obj.health <= 39 && sound)
         sound->playSfx("heartbeat");
 
     camera.update(player->obj.x, player->obj.y,

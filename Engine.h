@@ -52,9 +52,12 @@ public:
     Hud* hud = nullptr;
     Sound* sound = nullptr;
     Menu* menu = nullptr;
-	bool inMenu = true;
-	
-	// ----------------------------------------
+    bool inMenu = true;
+
+    // Controller instance (single controller for now)
+    Controller controller;
+
+    // ----------------------------------------
 
     // ---------------- Level Transition ----------------
     bool transitioning = false;

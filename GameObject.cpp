@@ -35,7 +35,7 @@ SDL_FRect GameObject::getAttackRect() const {
 }
 
 void GameObject::draw(SDL_Renderer* renderer, int camX, int camY) {
-	if (!obj.alive) return;
+    if (!obj.alive) return;
         SDL_FRect dst;
 
         // Scale so inner sprite matches hitbox
@@ -94,6 +94,9 @@ void GameObject::update(Map& map)
     // --------------------
     // Vertical movement
     // --------------------
+    // Save previous Y so we can detect coming-from-above for one-way platforms
+    float prevY = obj.y;
+
     obj.y += obj.vely;
 
     leftTile = int(obj.x / map.TILE_SIZE);
@@ -103,17 +106,45 @@ void GameObject::update(Map& map)
 
     // Vertical collision
     if (obj.vely > 0) { // falling
-        if (map.isSolid(leftTile, bottomTile) ||
-            map.isSolid(rightTile, bottomTile))
+        // Check both bottom tiles
+        int colLeft = map.getCollision(leftTile, bottomTile);
+        int colRight = map.getCollision(rightTile, bottomTile);
+
+        auto shouldStopOn = [&](int col, int tileY) -> bool {
+            if (col == -1) return false;
+            if (col == Map::COLL_ONEWAY) {
+                // Only stop if we were above the platform in the previous frame
+                float platformTop = float(bottomTile * map.TILE_SIZE);
+                float prevBottom = prevY + obj.tileHeight - 1;
+                if (prevBottom <= platformTop && obj.ignoreOneWayTimer <= 0)
+                    return true;
+                return false;
+            }
+            // Any other non -1 collision is solid
+            return true;
+        };
+
+        if (shouldStopOn(colLeft, bottomTile) || shouldStopOn(colRight, bottomTile))
         {
             obj.y = bottomTile * map.TILE_SIZE - obj.tileHeight;
             obj.vely = 0.0f;
             obj.onGround = true;
-        }
+        } else {
+            obj.onGround = false;
+                }
     }
     else if (obj.vely < 0) { // jumping / hitting ceiling
-        if (map.isSolid(leftTile, topTile) ||
-            map.isSolid(rightTile, topTile))
+        // One-way platforms should NOT block you when going up; treat ONLY non-one-way as solid
+        int colLeftTop = map.getCollision(leftTile, topTile);
+        int colRightTop = map.getCollision(rightTile, topTile);
+
+        auto isSolidCeil = [&](int col) -> bool {
+            if (col == -1) return false;
+            if (col == Map::COLL_ONEWAY) return false; // allow passing up through one-way
+            return true;
+        };
+
+        if (isSolidCeil(colLeftTop) || isSolidCeil(colRightTop))
         {
             obj.y = (topTile + 1) * map.TILE_SIZE;
             obj.vely = 0.0f;
@@ -199,6 +230,12 @@ void GameObject::update(Map& map)
     // --------------------
     if (knockbackTimer > 0)
         --knockbackTimer;
+
+    // --------------------
+    // Decrement drop-through timer (if set by player)
+    // --------------------
+    if (obj.ignoreOneWayTimer > 0)
+        --obj.ignoreOneWayTimer;
 }
 
 void GameObject::startFlash(int flashes, int intervalTicks) {

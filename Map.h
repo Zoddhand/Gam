@@ -20,6 +20,16 @@ public:
     bool loadColCSV(const std::string& path); // collision csv loader
     int getTile(int x, int y) const;
 
+    // Collision semantics:
+    // -1 = empty / passable
+    //  0..n = solid (engine treats any non -1 as solid)
+    //  2 = one-way platform (special behavior)
+    static constexpr int COLL_ONEWAY = 2;
+
+    // Return the raw collision value for a tile, or -1 if out of bounds / no collision.
+    // This allows callers to implement special behaviors (one-way platforms).
+    int getCollision(int tx, int ty) const;
+
     // Spawn / object tile ids (map uses these tile values to indicate spawns)
     static constexpr int SPAWN_PLAYER = 80;        // player spawn
     static constexpr int SPAWN_ORC = 81;           // orc enemy spawn

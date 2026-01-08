@@ -135,17 +135,23 @@ bool Map::isSolid(int tx, int ty)
     if (tx < 0 || ty < 0 || tx >= width || ty >= height)
         return true;
 
-    // Check collision layer only. If collision data isn't loaded fall back to tiles behavior
+    // Use getCollision for consistent semantics
+    int c = getCollision(tx, ty);
+    return c != -1;
+}
+
+int Map::getCollision(int tx, int ty) const
+{
+    if (tx < 0 || ty < 0 || tx >= width || ty >= height)
+        return -1;
+
+    // If a collision layer exists, return that raw value.
     if (!collision.empty()) {
-        int c = collision[ty * width + tx];
-        return c != -1;
+        return collision[ty * width + tx];
     }
 
-    int t = tiles[ty * width + tx];
-    if (t == TRAP_TILE || t == FALLINGTRAP_TILE)
-        return false;
-
-    return t != -1;
+    // Fallback: return tile value (old behaviour)
+    return tiles[ty * width + tx];
 }
 
 

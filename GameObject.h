@@ -19,14 +19,15 @@ public:
         bool alive = true;
         float health = 100.0f;
         float maxHealth = 100.0f;
-		int damage = 10;
+        int damage = 10;
         bool canMove = true;
+        int ignoreOneWayTimer = 0;
     }; object obj;
 
     struct Audio {
-		const char* hitSfx = "hit";
-		const char* walkSfx = "walk";
-		const char* deathSfx = "death";
+        const char* hitSfx = "hit";
+        const char* walkSfx = "walk";
+        const char* deathSfx = "death";
     } audio;
 
     AnimationManager* animIdle;
