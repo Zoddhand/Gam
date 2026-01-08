@@ -20,7 +20,7 @@ void Spikes::update(GameObject& obj, Map& /*map*/)
     tr.h = tr.h / 2;
     if (SDL_HasRectIntersectionFloat(&pr, &tr)) {
         // default behaviour: instant kill; change to damage if you add health
-        obj.obj.alive = false;
+		obj.takeDamage(20.0f, obj.getRect().x, 3, 6, 30, 2.5f, -4.0f, 12);
         //active = false;
     }
 }

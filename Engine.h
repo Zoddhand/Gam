@@ -55,7 +55,7 @@ public:
     int lastStartPosY = 0;
 
     float transitionTimer = 0.0f;
-    const float TRANSITION_DURATION = 0.5f;
+    const float TRANSITION_DURATION = 1.5f;
     SDL_FRect transitionRect{ 0,0,float(SCREEN_W),float(SCREEN_H) };
 
     static constexpr int GRID_ROWS = 10;

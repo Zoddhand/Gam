@@ -114,7 +114,8 @@ std::vector<Map::ObjectSpawn> Map::getObjectSpawns() const
             if (t == SPAWN_PLAYER ||
                 t == SPAWN_ORC ||
                 t == SPAWN_FALLINGTRAP ||
-                t == SPAWN_SPIKES)
+                t == SPAWN_SPIKES ||    
+                t == SPAWN_SKELETON)
             {
                 out.push_back({
                     x,   // tile X

@@ -17,7 +17,7 @@ GameObject::GameObject(SDL_Renderer* renderer, const std::string& spritePath, in
     obj.tileHeight = th;
     animIdle = new AnimationManager(tex, 100, 100, 6, 0, 44, 42, obj.tileWidth, obj.tileHeight);
     animWalk = new AnimationManager(tex, 100, 100, 8, 100, 44, 42, obj.tileWidth, obj.tileHeight);
-    animAttack = new AnimationManager(tex, 100, 100, 5, 200, 44, 42, obj.tileWidth, obj.tileHeight);
+    animAttack = new AnimationManager(tex, 100, 100, 9, 200, 44, 42, obj.tileWidth, obj.tileHeight);
     currentAnim = animIdle;
 
 }

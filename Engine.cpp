@@ -3,9 +3,16 @@
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <iostream>
+#include <cstdlib>
+#include <ctime>
+
+
 
 int main(int argc, char* argv[])
 {
+    // Call once at program start
+    srand(static_cast<unsigned>(time(nullptr)));
+
     Engine engine;
 
     // Load starting room
@@ -84,7 +91,8 @@ void Engine::handleEvents()
             running = false;
 
     const bool* keys = SDL_GetKeyboardState(nullptr);
-    if (player) player->input(keys);
+    // Only forward input to player if movement is allowed
+    if (player && !transitioning) player->input(keys);
 }
 
 // --------------------------------------------------
@@ -111,6 +119,24 @@ void Engine::update()
                 }
             }
         }
+
+        for (auto* r : orc)
+            r->aiUpdate(*player, map);
+
+        for (auto* f : fallT)
+        {
+            f->checkTrigger(*player);
+            f->update(map);
+            for (auto* r : orc)
+                f->checkTrigger(*r);
+        }
+
+        for (auto* o : objects)
+        {
+            o->update(*player, map);
+            for (auto* r : orc)
+                o->update(*r, map);
+        }
     }
 
     if (transitioning)
@@ -123,7 +149,7 @@ void Engine::update()
         }
     }
 
-    if (!player) return;
+    if (!player || transitioning) return;
     if (player->obj.alive)
         player->update(map);
     else
@@ -143,24 +169,6 @@ void Engine::update()
         map.width, SCREEN_W,
         map.height, SCREEN_H,
         TILE_SIZE, VIEW_SCALE);
-
-    for (auto* r : orc)
-        r->aiUpdate(*player, map);
-
-    for (auto* f : fallT)
-    {
-        f->checkTrigger(*player);
-        f->update(map);
-        for (auto* r : orc)
-            f->checkTrigger(*r);  
-    }
-        
-    for (auto* o : objects)
-    {
-        o->update(*player, map);
-        for (auto* r : orc)
-            o->update(*r, map);
-    }
         
 }
 
@@ -277,10 +285,14 @@ void Engine::loadLevel(int levelID)
     // ----------------------------------------
     // Create PLAYER (ENGINE-OWNED)
     // ----------------------------------------
-    player = new Player(renderer, "Assets/Sprites/player.png", 12, 16);
+    const char* spritePath =
+        (rand() % 2 == 0)
+        ? "Assets/Sprites/player.png"
+        : "Assets/Sprites/swordsman.png";
+    
+    player = new Player(renderer, spritePath, 12, 16);
     player->obj.x = spawnX;
     player->obj.y = spawnY;
-    //player->obj.canMove = true;
 
     setPlayerFacingFromEntry(entryDirection);
 
@@ -303,6 +315,15 @@ void Engine::loadLevel(int levelID)
             orc.push_back(new Orc(
                 renderer,
                 "Assets/Sprites/enemy.png",
+                12, 16,
+                px, py
+            ));
+            break;
+
+        case Map::SPAWN_SKELETON:
+            orc.push_back(new Orc(
+                renderer,
+                "Assets/Sprites/Skeleton.png",
                 12, 16,
                 px, py
             ));

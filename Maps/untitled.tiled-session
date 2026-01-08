@@ -9,24 +9,56 @@
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
+        "044.tmx": {
+            "scale": 2.3230468749999997,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": -127.84933579956282,
+                "y": 511.82781234235756
+            }
+        },
+        "045.tmx": {
+            "scale": 4.6460937499999995,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": -65.00084076004708,
+                "y": 128.06457037161599
+            }
+        },
         "046.tmx": {
             "scale": 4.6460937499999995,
-            "selectedLayer": 0,
+            "selectedLayer": 2,
             "viewCenter": {
                 "x": -128.06457037161596,
                 "y": 128.06457037161599
             }
         },
         "047.tmx": {
-            "scale": 2,
-            "selectedLayer": 0,
+            "scale": 3,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": 46,
-                "y": 170
+                "x": -108.33333333333331,
+                "y": 80.33333333333334
+            }
+        },
+        "054.tmx": {
+            "scale": 3,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": -1.3333333333333144,
+                "y": 606
             }
         },
         "tileset.tsx": {
             "scaleInDock": 3
+        },
+        "untitled.tmx": {
+            "scale": 4.6460937499999995,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": -128.06457037161596,
+                "y": 128.06457037161599
+            }
         }
     },
     "last.exportedFilePath": "C:/Dev/GAME/Maps",
@@ -38,10 +70,12 @@
     "map.tileWidth": 16,
     "openFiles": [
         "047.tmx",
-        "046.tmx"
+        "046.tmx",
+        "045.tmx"
     ],
     "project": "untitled.tiled-project",
     "recentFiles": [
+        "045.tmx",
         "046.tmx",
         "047.tmx"
     ],
