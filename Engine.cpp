@@ -1,10 +1,12 @@
 ﻿#include "Engine.h"
 #include "Spikes.h"
+#include "Menu.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
+
 
 
 
@@ -75,13 +77,18 @@ Engine::Engine()
         sound->loadWav("attack3", "Assets/Sound/attack3.wav");
         sound->loadWav("death", "Assets/Sound/death.wav");
         sound->loadWav("heartbeat", "Assets/Sound/heartbeat.wav");
-        //sound->playMusic("music", true, 32);
+        sound->playMusic("music", true, 32);
     }
+
+    // Create menu
+    menu = new Menu(renderer, VIEW_SCALE);
+    inMenu = true;
 }
 
 Engine::~Engine()
 {
     cleanupObjects();
+    if (menu) delete menu;
     if (hud) delete hud;
     if (sound) {
         // clear global pointer first
@@ -131,7 +138,11 @@ void Engine::handleEvents()
 
     const bool* keys = SDL_GetKeyboardState(nullptr);
     // Only forward input to player if movement is allowed
-    if (player && !transitioning) player->input(keys);
+    if (!inMenu) {
+        if (player && !transitioning) player->input(keys);
+    } else {
+        if (menu) menu->handleInput(keys);
+    }
 }
 
 // --------------------------------------------------
@@ -139,6 +150,19 @@ int t1 = 0;
 int t2 = 0;
 void Engine::update()
 {
+    if (inMenu) {
+        if (menu) menu->update();
+        int sel = menu->consumeSelection();
+        if (sel != -1) {
+            if (sel == 0) { // Play
+                inMenu = false;
+            }
+        }
+        // still update sound so logs/streams remain functional
+        if (sound) sound->update();
+        return;
+    }
+    sound->stopMusic();
     if (!transitioning && player)
     {
         int tx = int(player->obj.x) / TILE_SIZE;
@@ -223,6 +247,11 @@ void Engine::update()
 
 void Engine::render()
 {
+    if (inMenu) {
+        if (menu) menu->render(renderer);
+        SDL_RenderPresent(renderer);
+        return;
+    }
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);

@@ -19,6 +19,10 @@ public:
     void playMusic(const std::string& id, bool loop = true, int volume = 128);
     void stopMusic();
 
+    // music mute control
+    void setMusicMuted(bool muted);
+    bool isMusicMuted() const { return musicMuted; }
+
     // Call regularly from the game's update loop to clean up finished streams
     void update();
 
@@ -47,6 +51,7 @@ private:
     std::string musicId;
     bool musicLoop = false;
     int musicVolume = 128;
+    bool musicMuted = false;
 };
 
 // Global pointer set by Engine to allow easy SFX calls from gameplay code

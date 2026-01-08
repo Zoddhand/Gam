@@ -10,6 +10,8 @@
 #include "Hud.h"
 #include "Sound.h"
 
+class Menu;
+
 #define LEFT  96
 #define UP    97
 #define RIGHT 98
@@ -49,6 +51,9 @@ public:
     std::vector<FallingTrap*> fallT;
     Hud* hud = nullptr;
     Sound* sound = nullptr;
+    Menu* menu = nullptr;
+	bool inMenu = true;
+	
 	// ----------------------------------------
 
     // ---------------- Level Transition ----------------

@@ -173,6 +173,8 @@ void Sound::stopAllSfx()
 
 void Sound::playMusic(const std::string& id, bool loop, int volume)
 {
+    if (musicMuted) return; // respect mute
+
     auto it = loaded.find(id);
     if (it == loaded.end()) {
         SDL_Log("Sound: music not loaded: %s", id.c_str());
@@ -218,7 +220,24 @@ void Sound::stopMusic()
     SDL_UnbindAudioStream(musicStream);
     SDL_DestroyAudioStream(musicStream);
     musicStream = nullptr;
-    musicId.clear();
+}
+
+void Sound::setMusicMuted(bool muted)
+{
+    musicMuted = muted;
+    if (musicMuted) {
+        // immediately stop music stream
+        if (musicStream) {
+            SDL_UnbindAudioStream(musicStream);
+            SDL_DestroyAudioStream(musicStream);
+            musicStream = nullptr;
+        }
+    } else {
+        // if unmuting, re-start music if an id exists
+        if (!musicId.empty()) {
+            playMusic(musicId, musicLoop, musicVolume);
+        }
+    }
 }
 
 void Sound::update()
