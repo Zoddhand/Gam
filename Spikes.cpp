@@ -1,5 +1,6 @@
 #include "Spikes.h"
 #include "Player.h"
+#include "Sound.h"
 #include <SDL3/SDL.h>
 
 Spikes::Spikes(int tileX, int tileY, int tileIndex)
@@ -21,6 +22,7 @@ void Spikes::update(GameObject& obj, Map& /*map*/)
     if (SDL_HasRectIntersectionFloat(&pr, &tr)) {
         // default behaviour: instant kill; change to damage if you add health
 		obj.takeDamage(20.0f, obj.getRect().x, 3, 6, 30, 2.5f, -4.0f, 12);
+        if (gSound) gSound->playSfx("hit");
         //active = false;
     }
 }

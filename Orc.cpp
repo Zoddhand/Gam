@@ -6,7 +6,8 @@ Orc::Orc(SDL_Renderer* renderer,
     int tw,
     int th,
     float startX,
-    float startY)
+    float startY,
+    int dam)
     : GameObject(renderer, spritePath, tw, th)
 {
     obj.x = startX;
@@ -15,6 +16,9 @@ Orc::Orc(SDL_Renderer* renderer,
     obj.facing = true;
     obj.velx = 1.0f;   // patrol speed
     obj.attSpeed = 10;
+    obj.damage = dam;
+	audio.hitSfx = "orc_hit";
+	audio.deathSfx = "orc_death";
 }
 
 void Orc::aiUpdate(Player& player, Map& map)

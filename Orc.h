@@ -10,7 +10,9 @@ public:
         int tw,
         int th,
         float startX,
-        float startY);
+        float startY,
+        int dam
+    );
 
     void aiUpdate(Player& player, Map& map);
     SDL_FRect getAttackRect() const override;

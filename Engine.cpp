@@ -33,7 +33,11 @@ int main(int argc, char* argv[])
 
 Engine::Engine()
 {
-    SDL_Init(SDL_INIT_VIDEO);
+    // Initialize video + audio subsystems
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0) {
+        SDL_Log("SDL_Init failed: %s", SDL_GetError());
+    }
+
     window = SDL_CreateWindow("Platformer", SCREEN_W * 2, SCREEN_H * 2, SDL_WINDOW_BORDERLESS);
     renderer = SDL_CreateRenderer(window, nullptr);
 
@@ -43,11 +47,46 @@ Engine::Engine()
     float sx, sy;
     SDL_GetRenderScale(renderer, &sx, &sy);
     SDL_Log("Render scale = %f x %f", sx, sy);
+
+    // Create HUD
+    hud = new Hud(renderer, "Assets/Sprites/heart.png");
+
+    // Create Sound manager
+    sound = new Sound();
+    // expose global pointer immediately so gameplay code can use it
+    gSound = sound;
+    SDL_Log("Engine: created sound instance %p and assigned to gSound", (void*)sound);
+
+    if (!sound->init()) {
+        SDL_Log("Warning: sound init failed");
+        // clear global if init failed
+        gSound = nullptr;
+    }
+    else {
+        // Load some example files (put your WAVs in Assets/Sound)
+        sound->loadWav("music", "Assets/Sound/MOONLIGHT.wav");
+        sound->loadWav("hit", "Assets/Sound/Female Hit 1.wav");
+        sound->loadWav("orc_hit", "Assets/Sound/Orc Hit 1.wav");
+        sound->loadWav("step", "Assets/Sound/step.wav");
+        sound->loadWav("jump1", "Assets/Sound/jump1.wav");
+        sound->loadWav("jump2", "Assets/Sound/jump2.wav");
+        sound->loadWav("attack1", "Assets/Sound/attack1.wav");
+        sound->loadWav("attack2", "Assets/Sound/attack2.wav");
+        sound->loadWav("attack3", "Assets/Sound/attack3.wav");
+        sound->loadWav("death", "Assets/Sound/death.wav");
+        sound->loadWav("heartbeat", "Assets/Sound/heartbeat.wav");
+        //sound->playMusic("music", true, 32);
+    }
 }
 
 Engine::~Engine()
 {
     cleanupObjects();
+    if (hud) delete hud;
+    if (sound) {
+        // clear global pointer first
+        gSound = nullptr;
+        sound->shutdown(); delete sound; }
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -116,26 +155,27 @@ void Engine::update()
                     entryDirection = t;
                     transitioning = true;
                     transitionTimer = TRANSITION_DURATION;
+                    // Prevent player from moving during transition
+                    if (player) player->obj.canMove = false;
                 }
             }
-        }
-
-        for (auto* r : orc)
-            r->aiUpdate(*player, map);
-
-        for (auto* f : fallT)
-        {
-            f->checkTrigger(*player);
-            f->update(map);
             for (auto* r : orc)
-                f->checkTrigger(*r);
-        }
+                r->aiUpdate(*player, map);
 
-        for (auto* o : objects)
-        {
-            o->update(*player, map);
-            for (auto* r : orc)
-                o->update(*r, map);
+            for (auto* f : fallT)
+            {
+                f->checkTrigger(*player);
+                f->update(map);
+                for (auto* r : orc)
+                    f->checkTrigger(*r);
+            }
+
+            for (auto* o : objects)
+            {
+                o->update(*player, map);
+                for (auto* r : orc)
+                    o->update(*r, map);
+            }
         }
     }
 
@@ -149,7 +189,7 @@ void Engine::update()
         }
     }
 
-    if (!player || transitioning) return;
+    if (!player) return;
     if (player->obj.alive)
         player->update(map);
     else
@@ -163,22 +203,30 @@ void Engine::update()
         loadLevel(currentLevelID);
         player->obj.x = t1;
         player->obj.y = t2;
+		player->obj.health = player->obj.maxHealth;
+		sound->stopSfx("heartbeat");
     }
+
+    if (player->obj.health <= 20)
+        sound->playSfx("heartbeat");
 
     camera.update(player->obj.x, player->obj.y,
         map.width, SCREEN_W,
         map.height, SCREEN_H,
         TILE_SIZE, VIEW_SCALE);
-        
+
+    // update sound streams
+    if (sound) sound->update();
 }
 
 // --------------------------------------------------
 
 void Engine::render()
 {
+
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
-
+    
     map.draw(renderer, camera.x, camera.y);
     for (auto* o : orc)
         o->draw(renderer, camera.x, camera.y);
@@ -191,6 +239,9 @@ void Engine::render()
         o->draw(renderer, camera.x, camera.y, map);
 
     if (player) player->draw(renderer, camera.x, camera.y);
+
+    // Draw HUD last so it's on top
+    if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth);
 
     if (transitioning)
     {
@@ -206,6 +257,14 @@ void Engine::render()
 
 void Engine::loadLevel(int levelID)
 {
+    // Preserve player health across loads
+    float savedHealth = 100.0f;
+    float savedMaxHealth = 100.0f;
+    if (player) {
+        savedHealth = player->obj.health;
+        savedMaxHealth = player->obj.maxHealth;
+    }
+
     // ----------------------------------------
     // Cleanup previous level
     // ----------------------------------------
@@ -290,9 +349,14 @@ void Engine::loadLevel(int levelID)
         ? "Assets/Sprites/player.png"
         : "Assets/Sprites/swordsman.png";
     
-    player = new Player(renderer, spritePath, 12, 16);
+    player = new Player(renderer, "Assets/Sprites/swordsman.png", 12, 16);
     player->obj.x = spawnX;
     player->obj.y = spawnY;
+    player->obj.canMove = true;
+
+    // Restore persisted health if available
+    player->obj.health = savedHealth;
+    player->obj.maxHealth = savedMaxHealth;
 
     setPlayerFacingFromEntry(entryDirection);
 
@@ -312,12 +376,7 @@ void Engine::loadLevel(int levelID)
             break;
 
         case Map::SPAWN_ORC:
-            orc.push_back(new Orc(
-                renderer,
-                "Assets/Sprites/enemy.png",
-                12, 16,
-                px, py
-            ));
+            orc.push_back(new Orc(renderer,"Assets/Sprites/enemy.png",12, 16,px, py , 20));
             break;
 
         case Map::SPAWN_SKELETON:
@@ -325,7 +384,7 @@ void Engine::loadLevel(int levelID)
                 renderer,
                 "Assets/Sprites/Skeleton.png",
                 12, 16,
-                px, py
+                px, py, 40
             ));
             break;
 

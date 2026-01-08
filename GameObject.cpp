@@ -1,6 +1,8 @@
 ﻿#include "GameObject.h"
+#include "Sound.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
+#include "Sound.h"
 
 GameObject::GameObject(SDL_Renderer* renderer, const std::string& spritePath, int tw, int th) {
     SDL_Surface* surf = IMG_Load(spritePath.c_str());
@@ -198,7 +200,7 @@ void GameObject::update(Map& map)
     // --------------------
     if (knockbackTimer > 0)
         --knockbackTimer;
-}   
+}
 
 void GameObject::startFlash(int flashes, int intervalTicks) {
     if (flashes <= 0) return;
@@ -231,6 +233,7 @@ void GameObject::takeDamage(
     obj.health -= amount;
     if (obj.health <= 0.0f) {
         obj.health = 0.0f;
+        if (gSound) gSound->playSfx(audio.deathSfx);
         obj.alive = false;
     }
 
@@ -238,6 +241,9 @@ void GameObject::takeDamage(
     // Visual feedback
     // --------------------
     startFlash(flashes, intervalTicks);
+
+    // Play hit sound
+    if (gSound) gSound->playSfx(audio.hitSfx);
 
     // --------------------
     // Invulnerability timer

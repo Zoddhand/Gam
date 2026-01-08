@@ -18,8 +18,16 @@ public:
         float attackTimer = 0;
         bool alive = true;
         float health = 100.0f;
+        float maxHealth = 100.0f;
 		int damage = 10;
+        bool canMove = true;
     }; object obj;
+
+    struct Audio {
+		const char* hitSfx = "hit";
+		const char* walkSfx = "walk";
+		const char* deathSfx = "death";
+    } audio;
 
     AnimationManager* animIdle;
     AnimationManager* animWalk;

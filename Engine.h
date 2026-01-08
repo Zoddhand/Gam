@@ -7,6 +7,8 @@
 #include "Orc.h"
 #include "MapObject.h"
 #include "FallingTrap.h"
+#include "Hud.h"
+#include "Sound.h"
 
 #define LEFT  96
 #define UP    97
@@ -45,6 +47,9 @@ public:
     std::vector<Orc*> orc;
     std::vector<MapObject*> objects;
     std::vector<FallingTrap*> fallT;
+    Hud* hud = nullptr;
+    Sound* sound = nullptr;
+	// ----------------------------------------
 
     // ---------------- Level Transition ----------------
     bool transitioning = false;

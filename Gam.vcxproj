@@ -111,7 +111,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>C:\DEV\SDL3\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL3.lib;SDL3_image.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL3.lib;SDL3_image.lib;SDL2_mixer.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -136,10 +136,12 @@
     <ClInclude Include="Engine.h" />
     <ClInclude Include="FallingTrap.h" />
     <ClInclude Include="GameObject.h" />
+    <ClInclude Include="Hud.h" />
     <ClInclude Include="Map.h" />
     <ClInclude Include="MapObject.h" />
     <ClInclude Include="Orc.h" />
     <ClInclude Include="Player.h" />
+    <ClInclude Include="Sound.h" />
     <ClInclude Include="TextureManager.h" />
     <ClInclude Include="Spikes.h" />
     <ClInclude Include="WorldObject.h" />
@@ -151,10 +153,12 @@
     <ClCompile Include="Engine.cpp" />
     <ClCompile Include="FallingTrap.cpp" />
     <ClCompile Include="GameObject.cpp" />
+    <ClCompile Include="Hud.cpp" />
     <ClCompile Include="Map.cpp" />
     <ClCompile Include="MapObject.cpp" />
     <ClCompile Include="Orc.cpp" />
     <ClCompile Include="Player.cpp" />
+    <ClCompile Include="Sound.cpp" />
     <ClCompile Include="TextureManager.cpp" />
     <ClCompile Include="Spikes.cpp" />
     <ClCompile Include="WorldObject.cpp" />
