@@ -21,6 +21,8 @@ GameObject::GameObject(SDL_Renderer* renderer, const std::string& spritePath, in
     animWalk = new AnimationManager(tex, 100, 100, 8, 100, 44, 42, obj.tileWidth, obj.tileHeight);
     animAttack = new AnimationManager(tex, 100, 100, 9, 200, 44, 42, obj.tileWidth, obj.tileHeight);
     animFlash = new AnimationManager(tex, 100, 100, 4, 500, 44, 42, obj.tileWidth, obj.tileHeight);
+    animBlock = new AnimationManager(tex, 100, 100, 4, 400, 44, 42, obj.tileWidth, obj.tileHeight);
+    animShoot = new AnimationManager(tex, 100, 100, 9, 400, 44, 42, obj.tileWidth, obj.tileHeight);
     animPrev = animIdle;
     currentAnim = animIdle;
 
@@ -173,9 +175,20 @@ void GameObject::update(Map& map)
             animPrev = nullptr;
         }
 
-        if (obj.attacking) {
-            currentAnim = animAttack;
-            currentAnim->setSpeed(obj.attSpeed);
+        // New: blocking animation takes precedence
+        if (blocking && animBlock) {
+            currentAnim = animBlock;
+            currentAnim->setSpeed(10);
+        }
+        else if (obj.attacking) {
+            // If a ranged "shoot" animation exists and was explicitly selected by the caller
+            // (currentAnim == animShoot), preserve it. Otherwise fall back to the melee attack anim.
+            if (animShoot && currentAnim == animShoot) {
+                currentAnim->setSpeed(obj.attSpeed);
+            } else {
+                currentAnim = animAttack;
+                currentAnim->setSpeed(obj.attSpeed);
+            }
         }
         else if (obj.velx != 0) {
             currentAnim = animWalk;
@@ -236,6 +249,27 @@ void GameObject::update(Map& map)
     // --------------------
     if (obj.ignoreOneWayTimer > 0)
         --obj.ignoreOneWayTimer;
+
+    // --------------------
+    // Clamp to map bounds so objects/players cannot fall out of the world
+    // --------------------
+    if (map.width > 0 && map.height > 0) {
+        int worldW = map.width * map.TILE_SIZE;
+        int worldH = map.height * map.TILE_SIZE;
+
+        if (obj.x < 0.0f) obj.x = 0.0f;
+        if (obj.x + obj.tileWidth > worldW) obj.x = float(worldW - obj.tileWidth);
+
+        if (obj.y < 0.0f) {
+            obj.y = 0.0f;
+            obj.vely = 0.0f;
+        }
+        if (obj.y + obj.tileHeight > worldH) {
+            obj.y = float(worldH - obj.tileHeight);
+            obj.vely = 0.0f;
+            obj.onGround = true;
+        }
+    }
 }
 
 void GameObject::startFlash(int flashes, int intervalTicks) {

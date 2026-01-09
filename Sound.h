@@ -28,6 +28,9 @@ public:
     // Call regularly from the game's update loop to clean up finished streams
     void update();
 
+    // Helper: check whether a music stream is active
+    bool isMusicPlaying() const;
+
     static int randomInt(int min, int max) {
         return rand() % (max - min + 1) + min;
     }

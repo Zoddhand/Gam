@@ -35,7 +35,8 @@ public:
     static constexpr int SPAWN_ORC = 81;           // orc enemy spawn
     static constexpr int SPAWN_SPIKES = 82;        // spikes (MapObject) spawn
     static constexpr int SPAWN_FALLINGTRAP = 83;   // falling trap spawn
-    static constexpr int SPAWN_SKELETON = 84;   // falling trap spawn
+    static constexpr int SPAWN_SKELETON = 84;      // skeleton spawn
+    static constexpr int SPAWN_ARCHER = 85;        // archer spawn
 
     // Backwards-compatible aliases used elsewhere in the codebase
     static constexpr int TRAP_TILE = SPAWN_SPIKES;

@@ -9,8 +9,11 @@
 #include "FallingTrap.h"
 #include "Hud.h"
 #include "Sound.h"
+#include "GameOver.h"
 
 class Menu;
+class Archer;
+class Arrow;
 
 #define LEFT  96
 #define UP    97
@@ -47,8 +50,10 @@ public:
     Camera camera;
     Player* player = nullptr;
     std::vector<Orc*> orc;
+    std::vector<Archer*> archers;
     std::vector<MapObject*> objects;
     std::vector<FallingTrap*> fallT;
+    std::vector<Arrow*> projectiles;
     Hud* hud = nullptr;
     Sound* sound = nullptr;
     Menu* menu = nullptr;
@@ -56,6 +61,10 @@ public:
 
     // Controller instance (single controller for now)
     Controller controller;
+
+    // Game over screen
+    GameOver* gameOver = nullptr;
+    bool inGameOver = false;
 
     // ----------------------------------------
 

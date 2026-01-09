@@ -1,5 +1,6 @@
 #include "Orc.h"
 #include <cmath>
+#include "Sound.h"
 
 Orc::Orc(SDL_Renderer* renderer,
     const std::string& spritePath,
@@ -7,7 +8,8 @@ Orc::Orc(SDL_Renderer* renderer,
     int th,
     float startX,
     float startY,
-    int dam)
+    int dam,
+    bool block)
     : GameObject(renderer, spritePath, tw, th)
 {
     obj.x = startX;
@@ -15,10 +17,11 @@ Orc::Orc(SDL_Renderer* renderer,
 
     obj.facing = true;
     obj.velx = 1.0f;   // patrol speed
-    obj.attSpeed = 10;
+    obj.attSpeed = 5;
     obj.damage = dam;
 	audio.hitSfx = "orc_hit";
 	audio.deathSfx = "orc_death";
+	canBlock = block;
 }
 
 void Orc::aiUpdate(Player& player, Map& map)
@@ -26,6 +29,10 @@ void Orc::aiUpdate(Player& player, Map& map)
     if (!obj.alive) return;
     if (knockbackTimer > 0) {
         GameObject::update(map);
+        // If knockback just ended during GameObject::update, orient to face the player
+        if (knockbackTimer <= 0) {
+            obj.facing = (player.obj.x > obj.x);
+        }
         return;
     }
 
@@ -37,7 +44,7 @@ void Orc::aiUpdate(Player& player, Map& map)
     // --------------------
     // Start attack
     // --------------------
-    if (sameLevel && playerClose && playerInFront && !obj.attacking && knockbackTimer <= 0) {
+    if (sameLevel && playerClose && playerInFront && !obj.attacking && knockbackTimer <= 0 && !blocking) {
         {
             obj.attacking = true;
             obj.attackTimer = obj.attSpeed * 5;
@@ -50,7 +57,7 @@ void Orc::aiUpdate(Player& player, Map& map)
     // --------------------
     // Movement intent
     // --------------------
-    if (!obj.attacking && knockbackTimer <= 0) {
+    if (!obj.attacking && knockbackTimer <= 0 && !blocking) {
         if (sameLevel && std::abs(dist) < 80 && playerInFront) {
             obj.velx = (dist < 0) ? -1.0f : 1.0f;   
             obj.facing = obj.velx > 0;
@@ -64,14 +71,14 @@ void Orc::aiUpdate(Player& player, Map& map)
         obj.facing = obj.velx > 0;
     }
     else {
-        obj.velx = 0;
+        if (!blocking) obj.velx = 0;
     }
 
     // --------------------
     // WALL + LEDGE CHECK (AI only)
     //   Do not let AI override knockback movement.
     // --------------------
-    if (!obj.attacking && knockbackTimer <= 0) {
+    if (!obj.attacking && knockbackTimer <= 0 && !blocking) {
         float nextX = obj.x + obj.velx;
 
         int l = int(nextX / map.TILE_SIZE);
@@ -105,7 +112,7 @@ void Orc::aiUpdate(Player& player, Map& map)
     // --------------------
     GameObject::update(map);
     // --------------------
-    // Die if hit
+    // Die if hit / Block if attacked from front
     // --------------------
     if (player.obj.attacking) {
         SDL_FRect atk = player.getAttackRect();
@@ -113,7 +120,31 @@ void Orc::aiUpdate(Player& player, Map& map)
 
         if (SDL_HasRectIntersectionFloat(&atk, &me)) {
             float playerCenter = player.obj.x + player.obj.tileWidth * 0.5f;
-            takeDamage(35.0f, playerCenter, 3, 6, 30, 2.5f, -4.0f);
+            float orcCenter = obj.x + obj.tileWidth * 0.5f;
+            bool attackFromFront = (playerCenter > orcCenter && obj.facing) || (playerCenter < orcCenter && !obj.facing);
+
+            if (attackFromFront && canBlock) {
+                // Block the attack: enter blocking state and avoid taking damage
+			obj.velx = 0;
+                blocking = true;
+                blockTimer = BLOCK_DURATION;
+                // cancel any in-progress attack so hitbox/animation won't overlap
+                obj.attacking = false;
+                obj.attackTimer = 0;
+                // stop horizontal movement immediately
+                obj.velx = 0;
+                if (animBlock) { currentAnim = animBlock; currentAnim->reset(); }
+                // optional: play block sfx if available
+                if (gSound) gSound->playSfx("hit", 128); // small feedback
+			player.obj.x -= (player.obj.facing) ? -0.1f : 0.1f; // slight pull to player
+			player.obj.attackTimer -= 1.0f; // slight delay to player's attack
+			gSound->playSfx("clang");
+            } else {
+                // Attacked from behind or side -> take damage normally
+                float playerCenter = player.obj.x + player.obj.tileWidth * 0.5f;
+                takeDamage(35.0f, playerCenter, 3, 6, 30, 2.5f, -4.0f);
+                obj.facing = player.obj.facing;
+            }
         }
     }
     else if (obj.attacking) {
@@ -123,6 +154,16 @@ void Orc::aiUpdate(Player& player, Map& map)
         if (SDL_HasRectIntersectionFloat(&atk, &me)) {
             float orcCenter = obj.x + obj.tileWidth * 0.5f;
             player.takeDamage(obj.damage, orcCenter, 3, 6, 30, 2.5f, -4.0f);
+        }
+    }
+
+    // --------------------
+    // Blocking timer decrement
+    // --------------------
+    if (blockTimer > 0) {
+        --blockTimer;
+        if (blockTimer <= 0) {
+            blocking = false;
         }
     }
 }

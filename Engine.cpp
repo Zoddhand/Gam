@@ -1,6 +1,9 @@
 ﻿#include "Engine.h"
 #include "Spikes.h"
 #include "Menu.h"
+#include "GameOver.h"
+#include "Archer.h"
+#include "Arrow.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <iostream>
@@ -20,12 +23,23 @@ int main(int argc, char* argv[])
     // Load starting room
     engine.loadLevel(engine.currentLevelID);
 
+    const double targetFps = 60.0; // fallback target
+    const double targetMs = 1000.0 / targetFps;
+
+    Uint32 lastTick = SDL_GetTicks();
     while (engine.running)
     {
+        Uint32 frameStart = SDL_GetTicks();
+
         engine.handleEvents();
         engine.update();
         engine.render();
-        SDL_Delay(16); // ~60 FPS
+
+        Uint32 frameEnd = SDL_GetTicks();
+        double elapsed = double(frameEnd - frameStart);
+        if (elapsed < targetMs) {
+            SDL_Delay((Uint32)(targetMs - elapsed));
+        }
     }
 
     return 0;
@@ -41,7 +55,35 @@ Engine::Engine()
     }
 
     window = SDL_CreateWindow("Platformer", SCREEN_W * 2, SCREEN_H * 2, SDL_WINDOW_BORDERLESS);
+    /* Move to 3rd monitor */
+    int displayCount = 0;
+    SDL_DisplayID* displays = SDL_GetDisplays(&displayCount);
+
+    if (displayCount > 2) { // need at least 3 monitors
+        SDL_Rect bounds;
+        SDL_GetDisplayBounds(displays[2], &bounds);
+
+        SDL_SetWindowPosition(
+            window,
+            bounds.x,
+            bounds.y
+        );
+    }
+    else {
+        SDL_Log("Monitor 3 not available (found %d displays)", displayCount);
+    }
+
+    // Request VSync via hint before creating renderer
+    SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+
+    // Create renderer (let driver decide flags). Many backends respect the hint.
     renderer = SDL_CreateRenderer(window, nullptr);
+
+    if (!renderer) {
+        SDL_Log("Failed to create renderer: %s", SDL_GetError());
+    } else {
+        SDL_Log("Renderer created");
+    }
 
     SDL_SetRenderLogicalPresentation(renderer, SCREEN_W, SCREEN_H, SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
     SDL_SetRenderScale(renderer, VIEW_SCALE, VIEW_SCALE);
@@ -86,12 +128,19 @@ Engine::Engine()
         sound->loadWav("heartbeat", "Assets/Sound/heartbeat.wav");
         sound->loadWav("fallTrapRelease", "Assets/Sound/fallTrapRelease.wav");
         sound->loadWav("fallTrapLand", "Assets/Sound/fallTrapLand.wav");
+        sound->loadWav("clang", "Assets/Sound/clang.wav");
+        sound->loadWav("arrow", "Assets/Sound/arrow.wav");
+        sound->loadWav("arrow_impact", "Assets/Sound/arrow_impact.wav");
+        sound->loadWav("monster", "Assets/Sound/monster.wav");
         sound->playMusic("music", true, 32);
     }
 
     // Create menu
     menu = new Menu(renderer, VIEW_SCALE);
     inMenu = true;
+
+    // Create game over screen
+    gameOver = new GameOver(renderer, VIEW_SCALE);
 }
 
 Engine::~Engine()
@@ -99,6 +148,7 @@ Engine::~Engine()
     cleanupObjects();
     if (menu) delete menu;
     if (hud) delete hud;
+    if (gameOver) delete gameOver;
     if (sound) {
         // clear global pointer first
         gSound = nullptr;
@@ -114,8 +164,10 @@ void Engine::cleanupObjects()
 {
     delete player; player = nullptr;
     for (auto* o : orc) delete o; orc.clear();
+    for (auto* a : archers) delete a; archers.clear();
     for (auto* f : fallT) delete f; fallT.clear();
     for (auto* o : objects) delete o; objects.clear();
+    for (auto* p : projectiles) delete p; projectiles.clear();
 }
 
 // --------------------------------------------------
@@ -149,6 +201,13 @@ void Engine::handleEvents()
     // update controller polling every frame
     controller.update();
     auto cs = controller.getState();
+
+    // If in game over, route input only to gameOver UI
+    if (inGameOver && gameOver) {
+        if (cs.connected) gameOver->handleInput(cs);
+        else gameOver->handleInput(keys);
+        return;
+    }
 
     // Only forward input to player if movement is allowed
     if (!inMenu) {
@@ -208,22 +267,32 @@ void Engine::update()
                     if (player) player->obj.canMove = false;
                 }
             }
-            for (auto* r : orc)
-                r->aiUpdate(*player, map);
-
-            for (auto* f : fallT)
-            {
-                f->checkTrigger(*player);
-                f->update(map);
+            if (!inGameOver) {
+                // Update all game objects
                 for (auto* r : orc)
-                    f->checkTrigger(*r);
-            }
+                    r->aiUpdate(*player, map);
 
-            for (auto* o : objects)
-            {
-                o->update(*player, map);
-                for (auto* r : orc)
-                    o->update(*r, map);
+                for (auto* a : archers)
+                    a->aiUpdate(*player, map, projectiles);
+
+                for (auto* f : fallT)
+                {
+                    f->checkTrigger(*player);
+                    f->update(map);
+                    for (auto* r : orc)
+                        f->checkTrigger(*r);
+                    for (auto* a : archers)
+                        f->checkTrigger(*a);
+                }
+
+                for (auto* o : objects)
+                {
+                    o->update(*player, map);
+                    for (auto* r : orc)
+                        o->update(*r, map);
+                    for (auto* a : archers)
+                        o->update(*a, map);
+                }
             }
         }
     }
@@ -239,24 +308,74 @@ void Engine::update()
     }
 
     if (!player) return;
-    if (player->obj.alive)
+    if (player->obj.alive && !inGameOver)
         player->update(map);
     else
     {
-        player->obj.alive = true;
-        if (lastStartPosX != 0)
-        {
-           t1 = lastStartPosX;
-           t2 = lastStartPosY;
+        // Enter game over state (do not immediately respawn)
+        if (!inGameOver) {
+            inGameOver = true;
+            if (sound) {
+                sound->playSfx("death");
+                // Ensure any low-health heartbeat SFX is stopped when entering game over
+                sound->stopSfx("heartbeat");
+            }
         }
-        currentLevelID = 45;
-        loadLevel(currentLevelID);
-		player->obj.health = player->obj.maxHealth;
-		if (sound) sound->stopSfx("heartbeat");
-		inMenu = true;
     }
 
-    if (player->obj.health <= 39 && sound)
+    // update projectiles
+    for (auto it = projectiles.begin(); it != projectiles.end(); ) {
+        Arrow* a = *it;
+        a->update(map);
+        // simple player collision
+        if (player) {
+            SDL_FRect ar = a->getRect();
+
+            // If player is attacking, check attack hitbox against projectile and destroy arrow
+            if (player->obj.attacking) {
+                SDL_FRect atk = player->getAttackRect();
+                if (SDL_HasRectIntersectionFloat(&atk, &ar)) {
+                    // Destroy arrow and play feedback
+                    a->alive = false;
+                    if (gSound) gSound->playSfx("arrow_impact");
+                }
+            }
+
+            // If arrow still alive, check collision with player body
+            if (a->alive) {
+                SDL_FRect pr = player->getRect();
+                if (SDL_HasRectIntersectionFloat(&ar, &pr)) {
+                    player->takeDamage(15.0f, ar.x + ar.w*0.5f, 3, 6, 30, 2.5f, -4.0f);
+                    a->alive = false;
+                }
+            }
+        }
+
+        if (!a->alive) { delete a; it = projectiles.erase(it); }
+        else ++it;
+    }
+
+    // If in game over, check for selection
+    if (inGameOver && gameOver) {
+        gameOver->update();
+        int sel = gameOver->consumeSelection();
+        if (sel != -1) {
+            if (sel == 0) {
+                // Restart: reload the starting level and return to menu
+                inGameOver = false;
+                currentLevelID = 45;
+                loadLevel(currentLevelID);
+                if (player) player->obj.health = player->obj.maxHealth;
+                if (sound) sound->stopSfx("heartbeat");
+                inMenu = true;
+            } else if (sel == 1) {
+                // Quit
+                running = false;
+            }
+        }
+    }
+
+    if (player->obj.health <= 39 && sound && !inGameOver)
         sound->playSfx("heartbeat");
 
     camera.update(player->obj.x, player->obj.y,
@@ -278,6 +397,29 @@ void Engine::render()
         return;
     }
 
+    if (inGameOver && gameOver) {
+        // Draw last frame of level under overlay
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        map.draw(renderer, camera.x, camera.y);
+        for (auto* o : orc)
+            o->draw(renderer, camera.x, camera.y);
+        for (auto* f : fallT)
+            f->draw(renderer, camera.x, camera.y);
+        for (auto* o : objects)
+            o->draw(renderer, camera.x, camera.y, map);
+        for (auto* a : archers)
+            a->draw(renderer, camera.x, camera.y);
+        for (auto* p : projectiles)
+            p->draw(renderer, camera.x, camera.y);
+        if (player) player->draw(renderer, camera.x, camera.y);
+        if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth);
+
+        gameOver->render(renderer);
+        SDL_RenderPresent(renderer);
+        return;
+    }
+
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     
@@ -291,6 +433,12 @@ void Engine::render()
     
     for (auto* o : objects)
         o->draw(renderer, camera.x, camera.y, map);
+
+    for (auto* a : archers)
+        a->draw(renderer, camera.x, camera.y);
+
+    for (auto* p : projectiles)
+        p->draw(renderer, camera.x, camera.y);
 
     if (player) player->draw(renderer, camera.x, camera.y);
 
@@ -438,7 +586,7 @@ void Engine::loadLevel(int levelID)
                 renderer,
                 "Assets/Sprites/Skeleton.png",
                 12, 16,
-                px, py, 40
+                px, py, 40, true
             ));
             break;
 
@@ -448,6 +596,10 @@ void Engine::loadLevel(int levelID)
 
         case Map::SPAWN_SPIKES:
             objects.push_back(new Spikes(s.x, s.y, s.tileIndex));
+            break;
+
+        case Map::SPAWN_ARCHER:
+            archers.push_back(new Archer(renderer, "Assets/Sprites/archer.png", 12, 16, px, py, 10));
             break;
         }
     }
