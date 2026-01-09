@@ -10,11 +10,11 @@
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
         "044.tmx": {
-            "scale": 2.3230468749999997,
-            "selectedLayer": 1,
+            "scale": 4,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": -127.84933579956282,
-                "y": 511.82781234235756
+                "x": -238.5,
+                "y": 310.5
             }
         },
         "045.tmx": {
@@ -27,10 +27,10 @@
         },
         "046.tmx": {
             "scale": 5.5,
-            "selectedLayer": 1,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": -14.545454545454561,
-                "y": 139.45454545454544
+                "x": -73.27272727272728,
+                "y": 114.90909090909092
             }
         },
         "047.tmx": {

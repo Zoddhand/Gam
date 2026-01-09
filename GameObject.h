@@ -36,6 +36,7 @@ public:
     AnimationManager* currentAnim;
     AnimationManager* animFlash; // flashing sprite animation
     AnimationManager* animPrev;  // saved animation to restore after flash
+    AnimationManager* animBlock; // blocking animation (added)
 
 public:
     GameObject(SDL_Renderer* renderer, const std::string& spritePath, int tw, int th);
@@ -68,4 +69,7 @@ protected:
 
     // Knockback: while >0, AI movement should not override obj.velx
     int knockbackTimer = 0;    // remaining ticks to keep knockback
+
+    // Blocking state (for enemies that can block)
+    bool blocking = false;
 };

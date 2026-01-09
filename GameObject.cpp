@@ -21,6 +21,7 @@ GameObject::GameObject(SDL_Renderer* renderer, const std::string& spritePath, in
     animWalk = new AnimationManager(tex, 100, 100, 8, 100, 44, 42, obj.tileWidth, obj.tileHeight);
     animAttack = new AnimationManager(tex, 100, 100, 9, 200, 44, 42, obj.tileWidth, obj.tileHeight);
     animFlash = new AnimationManager(tex, 100, 100, 4, 500, 44, 42, obj.tileWidth, obj.tileHeight);
+    animBlock = new AnimationManager(tex, 100, 100, 4, 400, 44, 42, obj.tileWidth, obj.tileHeight);
     animPrev = animIdle;
     currentAnim = animIdle;
 
@@ -173,7 +174,12 @@ void GameObject::update(Map& map)
             animPrev = nullptr;
         }
 
-        if (obj.attacking) {
+        // New: blocking animation takes precedence
+        if (blocking && animBlock) {
+            currentAnim = animBlock;
+            currentAnim->setSpeed(10);
+        }
+        else if (obj.attacking) {
             currentAnim = animAttack;
             currentAnim->setSpeed(obj.attSpeed);
         }

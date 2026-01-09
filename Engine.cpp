@@ -1,6 +1,7 @@
 ﻿#include "Engine.h"
 #include "Spikes.h"
 #include "Menu.h"
+#include "GameOver.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <iostream>
@@ -20,12 +21,23 @@ int main(int argc, char* argv[])
     // Load starting room
     engine.loadLevel(engine.currentLevelID);
 
+    const double targetFps = 60.0; // fallback target
+    const double targetMs = 1000.0 / targetFps;
+
+    Uint32 lastTick = SDL_GetTicks();
     while (engine.running)
     {
+        Uint32 frameStart = SDL_GetTicks();
+
         engine.handleEvents();
         engine.update();
         engine.render();
-        SDL_Delay(16); // ~60 FPS
+
+        Uint32 frameEnd = SDL_GetTicks();
+        double elapsed = double(frameEnd - frameStart);
+        if (elapsed < targetMs) {
+            SDL_Delay((Uint32)(targetMs - elapsed));
+        }
     }
 
     return 0;
@@ -41,7 +53,35 @@ Engine::Engine()
     }
 
     window = SDL_CreateWindow("Platformer", SCREEN_W * 2, SCREEN_H * 2, SDL_WINDOW_BORDERLESS);
+    /* Move to 3rd monitor */
+    int displayCount = 0;
+    SDL_DisplayID* displays = SDL_GetDisplays(&displayCount);
+
+    if (displayCount > 2) { // need at least 3 monitors
+        SDL_Rect bounds;
+        SDL_GetDisplayBounds(displays[2], &bounds);
+
+        SDL_SetWindowPosition(
+            window,
+            bounds.x,
+            bounds.y
+        );
+    }
+    else {
+        SDL_Log("Monitor 3 not available (found %d displays)", displayCount);
+    }
+
+    // Request VSync via hint before creating renderer
+    SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+
+    // Create renderer (let driver decide flags). Many backends respect the hint.
     renderer = SDL_CreateRenderer(window, nullptr);
+
+    if (!renderer) {
+        SDL_Log("Failed to create renderer: %s", SDL_GetError());
+    } else {
+        SDL_Log("Renderer created");
+    }
 
     SDL_SetRenderLogicalPresentation(renderer, SCREEN_W, SCREEN_H, SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
     SDL_SetRenderScale(renderer, VIEW_SCALE, VIEW_SCALE);
@@ -86,12 +126,16 @@ Engine::Engine()
         sound->loadWav("heartbeat", "Assets/Sound/heartbeat.wav");
         sound->loadWav("fallTrapRelease", "Assets/Sound/fallTrapRelease.wav");
         sound->loadWav("fallTrapLand", "Assets/Sound/fallTrapLand.wav");
+        sound->loadWav("clang", "Assets/Sound/clang.wav");
         sound->playMusic("music", true, 32);
     }
 
     // Create menu
     menu = new Menu(renderer, VIEW_SCALE);
     inMenu = true;
+
+    // Create game over screen
+    gameOver = new GameOver(renderer, VIEW_SCALE);
 }
 
 Engine::~Engine()
@@ -99,6 +143,7 @@ Engine::~Engine()
     cleanupObjects();
     if (menu) delete menu;
     if (hud) delete hud;
+    if (gameOver) delete gameOver;
     if (sound) {
         // clear global pointer first
         gSound = nullptr;
@@ -149,6 +194,13 @@ void Engine::handleEvents()
     // update controller polling every frame
     controller.update();
     auto cs = controller.getState();
+
+    // If in game over, route input only to gameOver UI
+    if (inGameOver && gameOver) {
+        if (cs.connected) gameOver->handleInput(cs);
+        else gameOver->handleInput(keys);
+        return;
+    }
 
     // Only forward input to player if movement is allowed
     if (!inMenu) {
@@ -243,20 +295,34 @@ void Engine::update()
         player->update(map);
     else
     {
-        player->obj.alive = true;
-        if (lastStartPosX != 0)
-        {
-           t1 = lastStartPosX;
-           t2 = lastStartPosY;
+        // Enter game over state (do not immediately respawn)
+        if (!inGameOver) {
+            inGameOver = true;
+            if (sound) sound->playSfx("death");
         }
-        currentLevelID = 45;
-        loadLevel(currentLevelID);
-		player->obj.health = player->obj.maxHealth;
-		if (sound) sound->stopSfx("heartbeat");
-		inMenu = true;
     }
 
-    if (player->obj.health <= 39 && sound)
+    // If in game over, check for selection
+    if (inGameOver && gameOver) {
+        gameOver->update();
+        int sel = gameOver->consumeSelection();
+        if (sel != -1) {
+            if (sel == 0) {
+                // Restart: reload the starting level and return to menu
+                inGameOver = false;
+                currentLevelID = 45;
+                loadLevel(currentLevelID);
+                if (player) player->obj.health = player->obj.maxHealth;
+                if (sound) sound->stopSfx("heartbeat");
+                inMenu = true;
+            } else if (sel == 1) {
+                // Quit
+                running = false;
+            }
+        }
+    }
+
+    if (player->obj.health <= 39 && sound && !inGameOver)
         sound->playSfx("heartbeat");
 
     camera.update(player->obj.x, player->obj.y,
@@ -274,6 +340,25 @@ void Engine::render()
 {
     if (inMenu) {
         if (menu) menu->render(renderer);
+        SDL_RenderPresent(renderer);
+        return;
+    }
+
+    if (inGameOver && gameOver) {
+        // Draw last frame of level under overlay
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        map.draw(renderer, camera.x, camera.y);
+        for (auto* o : orc)
+            o->draw(renderer, camera.x, camera.y);
+        for (auto* f : fallT)
+            f->draw(renderer, camera.x, camera.y);
+        for (auto* o : objects)
+            o->draw(renderer, camera.x, camera.y, map);
+        if (player) player->draw(renderer, camera.x, camera.y);
+        if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth);
+
+        gameOver->render(renderer);
         SDL_RenderPresent(renderer);
         return;
     }
@@ -438,7 +523,7 @@ void Engine::loadLevel(int levelID)
                 renderer,
                 "Assets/Sprites/Skeleton.png",
                 12, 16,
-                px, py, 40
+                px, py, 40, true
             ));
             break;
 

@@ -11,9 +11,16 @@ public:
         int th,
         float startX,
         float startY,
-        int dam
+        int dam,
+		bool block = false
     );
 
     void aiUpdate(Player& player, Map& map);
     SDL_FRect getAttackRect() const override;
+    bool canBlock = false;
+
+private:
+    // handle blocking timing
+    int blockTimer = 0; // frames remaining in block stance
+    const int BLOCK_DURATION = 15; // default block duration in ticks
 };

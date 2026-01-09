@@ -1,86 +1,8 @@
 #include "Player.h"
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_gamepad.h>
 #include <SDL3_image/SDL_image.h>
 #include <iostream>
 #include "Sound.h"
-
-// Controller implementation using SDL3 gamepad API
-Controller::Controller() : gpHandle(nullptr) {}
-Controller::~Controller() { close(); }
-
-bool Controller::open(int index) {
-    close();
-    int count = 0;
-    SDL_JoystickID* ids = SDL_GetGamepads(&count);
-    if (!ids || count <= 0) {
-        if (ids) SDL_free(ids);
-        return false;
-    }
-
-    int useIndex = index;
-    if (useIndex < 0 || useIndex >= count) useIndex = 0;
-    SDL_JoystickID instance_id = ids[useIndex];
-    // free list returned by SDL_GetGamepads
-    SDL_free(ids);
-
-    SDL_Gamepad* gp = SDL_OpenGamepad(instance_id);
-    if (!gp) {
-        SDL_Log("SDL_OpenGamepad failed: %s", SDL_GetError());
-        return false;
-    }
-
-    gpHandle = static_cast<void*>(gp);
-    return true;
-}
-
-void Controller::close() {
-    if (gpHandle) {
-        SDL_Gamepad* gp = static_cast<SDL_Gamepad*>(gpHandle);
-        SDL_CloseGamepad(gp);
-        gpHandle = nullptr;
-    }
-}
-
-bool Controller::isOpen() const { return gpHandle != nullptr; }
-
-void Controller::update() {
-    SDL_Gamepad* gp = static_cast<SDL_Gamepad*>(gpHandle);
-    if (!gp) {
-        state.connected = false;
-        return;
-    }
-
-    state.connected = true;
-
-    // Buttons
-    state.jump = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_SOUTH) != 0; // bottom / A
-    state.attack = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_WEST) != 0; // left / X
-
-    // D-Pad
-    bool dleft = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_LEFT) != 0;
-    bool dright = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_RIGHT) != 0;
-    bool dup = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_UP) != 0;
-    bool ddown = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_DOWN) != 0;
-
-    // Left stick axis fallback
-    const int DEADZONE = 8000;
-    Sint16 ax = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTX);
-    Sint16 ay = SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFTY);
-
-    bool stickLeft = ax < -DEADZONE;
-    bool stickRight = ax > DEADZONE;
-    bool stickUp = ay < -DEADZONE;
-    bool stickDown = ay > DEADZONE;
-
-    state.left = dleft || stickLeft;
-    state.right = dright || stickRight;
-    state.up = dup || stickUp;
-    state.down = ddown || stickDown;
-}
-
-Controller::State Controller::getState() const { return state; }
-
 
 Player::Player(SDL_Renderer* renderer,
     const std::string& spritePath,
@@ -204,11 +126,9 @@ void Player::input(const Controller::State& cs) {
         }
     }
 
-    static bool jumpLast = false;
-    bool jumpNow = cs.jump;
-
-    // Down + Jump on controller to drop through one-way platforms
-    if (jumpNow && !jumpLast && !obj.attacking && jumpToken > 0) {
+    // Use controller-provided rising-edge flag so repeated frames of a held button
+    // do not consume multiple jumps. This prevents the "stuck" double-jump issue.
+    if (cs.jumpPressed && !obj.attacking && jumpToken > 0) {
         if (cs.down && obj.onGround) {
             obj.ignoreOneWayTimer = 12; // drop-through window
         } else {
@@ -222,6 +142,4 @@ void Player::input(const Controller::State& cs) {
             }
         }
     }
-
-    jumpLast = jumpNow;
 }

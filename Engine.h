@@ -9,6 +9,7 @@
 #include "FallingTrap.h"
 #include "Hud.h"
 #include "Sound.h"
+#include "GameOver.h"
 
 class Menu;
 
@@ -56,6 +57,10 @@ public:
 
     // Controller instance (single controller for now)
     Controller controller;
+
+    // Game over screen
+    GameOver* gameOver = nullptr;
+    bool inGameOver = false;
 
     // ----------------------------------------
 
