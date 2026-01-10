@@ -10,6 +10,7 @@
 #include "Hud.h"
 #include "Sound.h"
 #include "GameOver.h"
+#include "Background.h"
 
 class Menu;
 class Archer;
@@ -19,6 +20,7 @@ class Arrow;
 #define UP    97
 #define RIGHT 98
 #define DOWN  99
+#define PORT  22
 
 class Engine {
 public:
@@ -69,6 +71,9 @@ public:
     GameOver* gameOver = nullptr;
     bool inGameOver = false;
 
+    // Backgrounds
+    std::vector<Background*> backgrounds;
+
     // ----------------------------------------
 
     // ---------------- Level Transition ----------------
@@ -80,7 +85,7 @@ public:
     int lastStartPosY = 0;
 
     float transitionTimer = 0.0f;
-    const float TRANSITION_DURATION = 1.5f;
+    const float TRANSITION_DURATION = 0.1f;
     SDL_FRect transitionRect{ 0,0,float(SCREEN_W),float(SCREEN_H) };
 
     static constexpr int GRID_ROWS = 10;

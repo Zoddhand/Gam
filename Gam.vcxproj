@@ -137,6 +137,7 @@
     <ClInclude Include="Archer.h" />
     <ClInclude Include="Arrow.h" />
     <ClInclude Include="ArrowTrap.h" />
+    <ClInclude Include="Background.h" />
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CollisionManager.h" />
     <ClInclude Include="Controller.h" />
@@ -160,6 +161,7 @@
     <ClCompile Include="Archer.cpp" />
     <ClCompile Include="Arrow.cpp" />
     <ClCompile Include="ArrowTrap.cpp" />
+    <ClCompile Include="Background.cpp" />
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CollisionManager.cpp" />
     <ClCompile Include="Controller.cpp" />

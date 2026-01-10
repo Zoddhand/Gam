@@ -16,9 +16,9 @@ Orc::Orc(SDL_Renderer* renderer,
     obj.y = startY;
 
     obj.facing = true;
-    obj.velx = 1.0f;   // patrol speed
+    obj.velx = patrolSpeed;   // patrol speed
     obj.avoidEdges = true;
-    obj.attSpeed = 5;
+    obj.attSpeed = 4;
     obj.damage = dam;
 	audio.hitSfx = "orc_hit";
 	audio.deathSfx = "orc_death";
@@ -50,6 +50,17 @@ void Orc::aiUpdate(Player& player, Map& map)
     bool playerInFront = (dist > 0 && obj.facing) || (dist < 0 && !obj.facing);
     bool playerClose = std::abs(dist) <= 24;
 
+    // Determine whether the orc can "see" the player for aggression purposes
+    bool playerNearbyForSight = sameLevel && std::abs(dist) < 80 && playerInFront;
+    if (playerNearbyForSight) {
+        // First time seeing the player -> enter aggressive mode
+        if (!hasSeenPlayer) {
+            hasSeenPlayer = true;
+            aggressiveMode = true;
+            aggressiveTimer = AGGRESSIVE_DURATION;
+        }
+    }
+
     // --------------------
     // Start attack
     // --------------------
@@ -60,6 +71,10 @@ void Orc::aiUpdate(Player& player, Map& map)
             obj.velx = 0;
             currentAnim = animAttack;
             currentAnim->reset();
+            // Refresh aggressive timer when engaging the player
+            hasSeenPlayer = true;
+            aggressiveMode = true;
+            aggressiveTimer = AGGRESSIVE_DURATION;
         }
     }
 
@@ -74,7 +89,12 @@ void Orc::aiUpdate(Player& player, Map& map)
             if (sameLevel && std::abs(dist) < 80) {
                 paused = false;
                 obj.facing = (dist > 0);
-                obj.velx = obj.facing ? 1.0f : -1.0f;
+                // start moving using chase speed when resuming to chase
+                obj.velx = obj.facing ? chaseSpeed : -chaseSpeed;
+                // mark aggressive
+                hasSeenPlayer = true;
+                aggressiveMode = true;
+                aggressiveTimer = AGGRESSIVE_DURATION;
             }
             else {
                 if (pauseTimer > 0) --pauseTimer;
@@ -84,7 +104,9 @@ void Orc::aiUpdate(Player& player, Map& map)
                     // Choose a random direction to resume moving
                     bool faceRight = (rand() % 2) == 0;
                     obj.facing = faceRight;
-                    obj.velx = obj.facing ? 1.0f : -1.0f;
+                    // if currently in aggressive mode use chaseSpeed, otherwise patrolSpeed
+                    float useSpeed = aggressiveMode ? chaseSpeed : patrolSpeed;
+                    obj.velx = obj.facing ? useSpeed : -useSpeed;
                 }
             }
         }
@@ -113,11 +135,18 @@ void Orc::aiUpdate(Player& player, Map& map)
     if (!obj.attacking && knockbackTimer <= 0 && !blocking) {
         if (!paused) {
             if (sameLevel && std::abs(dist) < 80 && playerInFront) {
-                obj.velx = (dist < 0) ? -1.0f : 1.0f;   
+                // actively chase player using chaseSpeed
+                obj.velx = (dist < 0) ? -chaseSpeed : chaseSpeed;
                 obj.facing = obj.velx > 0;
+                // entering chase refreshes aggressive timer
+                hasSeenPlayer = true;
+                aggressiveMode = true;
+                aggressiveTimer = AGGRESSIVE_DURATION;
             }
             else {
-                obj.velx = obj.facing ? 1.0f : -1.0f;
+                // Patrol: use patrolSpeed unless in aggressive mode where we use chaseSpeed
+                float useSpeed = aggressiveMode ? chaseSpeed : patrolSpeed;
+                obj.velx = obj.facing ? useSpeed : -useSpeed;
             }
         }
     }
@@ -166,6 +195,15 @@ void Orc::aiUpdate(Player& player, Map& map)
     // Apply physics + animation
     // --------------------
     GameObject::update(map);
+
+    // decrement aggressive timer if active
+    if (aggressiveMode && aggressiveTimer > 0) {
+        --aggressiveTimer;
+        if (aggressiveTimer <= 0) {
+            aggressiveMode = false;
+        }
+    }
+
     // --------------------
     // Die if hit / Block if attacked from front
     // --------------------

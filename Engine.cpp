@@ -5,6 +5,7 @@
 #include "Archer.h"
 #include "Arrow.h"
 #include "ArrowTrap.h"
+#include "Background.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <iostream>
@@ -147,6 +148,22 @@ Engine::Engine()
 
     // Create game over screen
     gameOver = new GameOver(renderer, VIEW_SCALE);
+
+    // Create backgrounds and map level ids
+    Background* sky = new Background();
+    sky->load(renderer, "Assets/Backgrounds/Sky", 7);
+    // assign levels 22,23,24,25 to sky
+    sky->addLevel(22);
+    sky->addLevel(23);
+    sky->addLevel(24);
+    sky->addLevel(25);
+    backgrounds.push_back(sky);
+
+    // example: separate background for level 45
+    Background* other = new Background();
+    other->load(renderer, "Assets/Backgrounds/Other", 7);
+    other->addLevel(45);
+    backgrounds.push_back(other);
 }
 
 Engine::~Engine()
@@ -159,6 +176,11 @@ Engine::~Engine()
         // clear global pointer first
         gSound = nullptr;
         sound->shutdown(); delete sound; }
+
+    // cleanup backgrounds
+    for (auto* b : backgrounds) delete b;
+    backgrounds.clear();
+
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -246,7 +268,7 @@ void Engine::handleEvents()
     }
     if (keys[SDL_SCANCODE_5])
     {
-		loadLevel(48); // level ID 45 is a test room
+		loadLevel(PORT); // level ID 45 is a test room
     }
 }
 
@@ -255,6 +277,10 @@ int t1 = 0;
 int t2 = 0;
 void Engine::update()
 {
+    // advance autonomous background scrolling (fixed step)
+    const float bgDt = 1.0f / 60.0f;
+    for (auto* b : backgrounds) if (b) b->update(bgDt);
+
     // If hitstop active, decrement and skip gameplay updates (but allow input and rendering)
     if (hitstopTicks > 0) {
         --hitstopTicks;
@@ -378,7 +404,7 @@ void Engine::update()
                     if (pCenter < eCenter)
                         player->obj.x = e->obj.x - player->obj.tileWidth;
                     else
-                        player->obj.x = e->obj.x + e->obj.tileWidth;
+                        player->obj.x = e->obj.x + player->obj.tileWidth;
                 }
 
                 player->obj.velx = 0.0f;
@@ -509,6 +535,15 @@ void Engine::render()
         // Draw last frame of level under overlay
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
+
+        // draw background for current level if any
+        for (auto* b : backgrounds) {
+            if (b && b->matchesLevel(currentLevelID)) {
+                b->draw(renderer, camera.x, camera.y, SCREEN_W, SCREEN_H);
+                break;
+            }
+        }
+
         map.draw(renderer, camera.x, camera.y);
         for (auto* o : orc)
             o->draw(renderer, camera.x, camera.y);
@@ -530,6 +565,14 @@ void Engine::render()
 
     SDL_SetRenderDrawColor(renderer, 31, 14, 28, 255);
     SDL_RenderClear(renderer);
+
+    // draw background for current level if any
+    for (auto* b : backgrounds) {
+        if (b && b->matchesLevel(currentLevelID)) {
+            b->draw(renderer, camera.x, camera.y, SCREEN_W, SCREEN_H);
+            break;
+        }
+    }
     
     map.draw(renderer, camera.x, camera.y);
     for (auto* o : orc)
@@ -555,8 +598,8 @@ void Engine::render()
 
     if (transitioning)
     {
-        float a = 255.0f * (transitionTimer / TRANSITION_DURATION);
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, (Uint8)a);
+        // Immediately black out the screen during transitions (no fade)
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderFillRect(renderer, &transitionRect);
     }
 

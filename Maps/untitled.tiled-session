@@ -3,34 +3,74 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "047.tmx",
+    "activeFile": "026.tmx",
     "expandedProjectPaths": [
         "."
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
-        "043.tmx": {
+        "022.tmx": {
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -234.5,
-                "y": 402.66666666666663
+                "x": 173.5,
+                "y": -118.66666666666666
+            }
+        },
+        "023.tmx": {
+            "scale": 3,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": 193.16666666666666,
+                "y": -126.33333333333331
+            }
+        },
+        "024.tmx": {
+            "scale": 3,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": 193.16666666666666,
+                "y": -126.33333333333331
+            }
+        },
+        "025.tmx": {
+            "scale": 3,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 193.16666666666666,
+                "y": -126.33333333333331
+            }
+        },
+        "026.tmx": {
+            "scale": 3,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": 193.16666666666666,
+                "y": -126.33333333333331
+            }
+        },
+        "043.tmx": {
+            "scale": 3,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": -210.83333333333331,
+                "y": 396
             }
         },
         "044.tmx": {
-            "scale": 2,
+            "scale": 3,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": -80.25,
-                "y": 472.5
+                "x": -127.83333333333331,
+                "y": 356
             }
         },
         "045.tmx": {
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -204.5,
-                "y": 145.66666666666663
+                "x": -152.83333333333331,
+                "y": 135.33333333333334
             }
         },
         "046.tmx": {
@@ -45,8 +85,8 @@
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -166.83333333333331,
-                "y": 102.66666666666664
+                "x": 77.5,
+                "y": 139.33333333333334
             }
         },
         "048.tmx": {
@@ -61,7 +101,7 @@
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 128.16666666666666,
+                "x": -48.166666666666686,
                 "y": 68.33333333333334
             }
         },
@@ -69,28 +109,29 @@
             "scale": 4,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -170.875,
-                "y": 102.5
+                "x": -303.125,
+                "y": 194
             }
         },
         "054.tmx": {
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -116.16666666666669,
+                "x": -232.16666666666669,
                 "y": 540
             }
         },
         "fullMap.tmx": {
-            "scale": 3,
-            "selectedLayer": 0,
+            "scale": 0.75,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": 1706.8333333333333,
-                "y": 279
+                "x": 1220.6666666666665,
+                "y": 202.66666666666663
             }
         },
         "tileset.tsx": {
-            "scaleInDock": 3
+            "scaleInDock": 4,
+            "scaleInEditor": 1
         },
         "untitled.tmx": {
             "scale": 4.6460937499999995,
@@ -110,19 +151,37 @@
     "map.tileWidth": 16,
     "openFiles": [
         "047.tmx",
-        "046.tmx",
-        "054.tmx",
-        "044.tmx",
-        "045.tmx"
-    ],
-    "project": "untitled.tiled-project",
-    "recentFiles": [
+        "050.tmx",
+        "fullMap.tmx",
+        "043.tmx",
         "045.tmx",
         "044.tmx",
         "054.tmx",
+        "tileset.tsx",
         "046.tmx",
+        "048.tmx",
+        "049.tmx",
+        "024.tmx",
+        "022.tmx",
+        "023.tmx",
+        "025.tmx",
+        "024.tmx",
+        "026.tmx"
+    ],
+    "project": "untitled.tiled-project",
+    "recentFiles": [
         "047.tmx",
-        "untitled.tmx"
+        "050.tmx",
+        "fullMap.tmx",
+        "043.tmx",
+        "045.tmx",
+        "044.tmx",
+        "054.tmx",
+        "tileset.tsx",
+        "046.tmx",
+        "048.tmx",
+        "049.tmx",
+        "024.tmx"
     ],
     "tileset.lastUsedFormat": "tsx",
     "tileset.tileSize": {

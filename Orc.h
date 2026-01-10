@@ -15,6 +15,8 @@ public:
 		bool block = false
     );
 
+    float patrolSpeed = 0.5f;
+    float chaseSpeed = 1.5f;
     void aiUpdate(Player& player, Map& map);
     SDL_FRect getAttackRect() const override;
     bool canBlock = false;
@@ -23,6 +25,12 @@ private:
     // handle blocking timing
     int blockTimer = 0; // frames remaining in block stance
     const int BLOCK_DURATION = 15; // default block duration in ticks
+
+    // Aggressive mode: after first sighting, use chaseSpeed for a duration
+    bool hasSeenPlayer = false;
+    bool aggressiveMode = false;
+    int aggressiveTimer = 0; // frames remaining in aggressive mode
+    const int AGGRESSIVE_DURATION = 15 * 60; // 15 seconds @ 60fps
 
     // Random pause (idle) behaviour to make patrols feel alive
     bool paused = false;            // whether currently paused

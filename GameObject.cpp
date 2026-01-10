@@ -69,7 +69,7 @@ void GameObject::draw(SDL_Renderer* renderer, int camX, int camY) {
         float rawX = obj.x - camX - currentAnim->getInnerX() * scaleX;
         float rawY = obj.y - camY - currentAnim->getInnerY() * scaleY;
         dst.x = std::round(rawX);
-        dst.y = std::round(rawY);
+        dst.y = std::round(rawY) + 1.0f; // shift sprite down 1 pixel so feet align with hitbox
 
         SDL_FRect src = currentAnim->getSrcRect();
         SDL_FlipMode flip = obj.facing ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL;
@@ -142,17 +142,24 @@ void GameObject::update(Map& map)
 
     // Horizontal collision
     if (obj.velx > 0) { // moving right
-        if (map.isSolid(rightTile, topTile) ||
-            map.isSolid(rightTile, bottomTile))
+        // Treat one-way platforms as non-blocking for horizontal collisions.
+        int colTop = map.getCollision(rightTile, topTile);
+        int colBottom = map.getCollision(rightTile, bottomTile);
+        auto horSolid = [](int col) -> bool { return (col != -1 && col != Map::COLL_ONEWAY); };
+        if (horSolid(colTop) || horSolid(colBottom))
         {
             obj.x = rightTile * map.TILE_SIZE - obj.tileWidth;
+            obj.velx = 0.0f;
         }
     }
     else if (obj.velx < 0) { // moving left
-        if (map.isSolid(leftTile, topTile) ||
-            map.isSolid(leftTile, bottomTile))
+        int colTop = map.getCollision(leftTile, topTile);
+        int colBottom = map.getCollision(leftTile, bottomTile);
+        auto horSolid = [](int col) -> bool { return (col != -1 && col != Map::COLL_ONEWAY); };
+        if (horSolid(colTop) || horSolid(colBottom))
         {
             obj.x = (leftTile + 1) * map.TILE_SIZE;
+            obj.velx = 0.0f;
         }
     }
 
