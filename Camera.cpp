@@ -1,5 +1,13 @@
 #include "Camera.h"
 #include <cmath>
+#include <cstdlib>
+
+void Camera::shake(int durationTicks, int magnitude) {
+    if (durationTicks <= 0 || magnitude <= 0) return;
+    shakeDuration = durationTicks;
+    shakeTicksLeft = durationTicks;
+    shakeMag = magnitude;
+}
 
 void Camera::update(float playerX, float playerY, int mapWidth, int screenWidth, int mapHeight, int screenHeight, int tileSize, float scale) {
     if (scale < 0.0001f) scale = 1.0f;
@@ -9,8 +17,8 @@ void Camera::update(float playerX, float playerY, int mapWidth, int screenWidth,
     float halfVisibleH = (float)screenHeight / (2.0f * scale);
 
     // Keep your small offsets (6,8) in world pixels so centering still feels right
-    x = int(std::round(playerX + 6.0f - halfVisibleW));
-    y = int(std::round(playerY + 8.0f - halfVisibleH));
+    int baseX = int(std::round(playerX + 6.0f - halfVisibleW));
+    int baseY = int(std::round(playerY + 8.0f - halfVisibleH));
 
     // Compute visible size in world pixels and clamp
     int visibleW_world = int(std::round((float)screenWidth / scale));
@@ -21,6 +29,29 @@ void Camera::update(float playerX, float playerY, int mapWidth, int screenWidth,
     if (maxX < 0) maxX = 0;
     if (maxY < 0) maxY = 0;
 
+    if (baseX < 0) baseX = 0;
+    if (baseX > maxX) baseX = maxX;
+    if (baseY < 0) baseY = 0;
+    if (baseY > maxY) baseY = maxY;
+
+    // If shaking, compute a random offset scaled by remaining shake progress
+    int offsetX = 0;
+    int offsetY = 0;
+    if (shakeTicksLeft > 0) {
+        float progress = (float)shakeTicksLeft / (float)shakeDuration; // 1.0 -> 0.0
+        int curMag = int(std::round(shakeMag * progress));
+        if (curMag < 1) curMag = 1;
+        // random offset in [-curMag, curMag]
+        offsetX = (std::rand() % (curMag * 2 + 1)) - curMag;
+        offsetY = (std::rand() % (curMag * 2 + 1)) - curMag;
+
+        --shakeTicksLeft;
+    }
+
+    x = baseX + offsetX;
+    y = baseY + offsetY;
+
+    // clamp final
     if (x < 0) x = 0;
     if (x > maxX) x = maxX;
     if (y < 0) y = 0;

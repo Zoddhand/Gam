@@ -4,6 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <cmath>
 
 Map::Map()
 {
@@ -17,6 +18,11 @@ bool Map::loadTileset(SDL_Renderer* renderer, const std::string& path)
     tilesetTexture = SDL_CreateTextureFromSurface(renderer, surf);
     SDL_DestroySurface(surf);   
     if (!tilesetTexture) return false;
+
+    // Ensure nearest-neighbor sampling so tiles don't bleed into each other when drawn scaled
+    SDL_SetTextureScaleMode(tilesetTexture, SDL_SCALEMODE_NEAREST);
+    // Ensure alpha blending is enabled for tiles with transparency
+    SDL_SetTextureBlendMode(tilesetTexture, SDL_BLENDMODE_BLEND);
 
     // compute tileset dimensions
     float w = 0, h = 0;
@@ -86,11 +92,19 @@ void Map::draw(SDL_Renderer* renderer, int camX, int camY)
             int tx = tileIndex % tileCols;
             int ty = tileIndex / tileCols;
 
+            // Use integer-aligned source rect to avoid sampling neighboring texels
             src.x = float(tx * TILE_SIZE);
             src.y = float(ty * TILE_SIZE);
+            src.w = float(TILE_SIZE);
+            src.h = float(TILE_SIZE);
 
-            dest.x = float(x * TILE_SIZE - camX);
-            dest.y = float(y * TILE_SIZE - camY);
+            // Round destination position to integer pixels to avoid sub-pixel interpolation
+            float rawX = float(x * TILE_SIZE - camX);
+            float rawY = float(y * TILE_SIZE - camY);
+            dest.x = std::round(rawX);
+            dest.y = std::round(rawY);
+            dest.w = float(TILE_SIZE);
+            dest.h = float(TILE_SIZE);
 
             SDL_RenderTexture(renderer, tilesetTexture, &src, &dest);
         }
@@ -116,7 +130,9 @@ std::vector<Map::ObjectSpawn> Map::getObjectSpawns() const
                 t == SPAWN_FALLINGTRAP ||
                 t == SPAWN_SPIKES ||    
                 t == SPAWN_SKELETON ||
-                t == SPAWN_ARCHER)
+                t == SPAWN_ARCHER ||
+                t == SPAWN_ARROWTRAP_LEFT ||
+                t == SPAWN_ARROWTRAP_RIGHT)
             {
                 out.push_back({
                     x,   // tile X
@@ -154,6 +170,7 @@ int Map::getCollision(int tx, int ty) const
     // Fallback: return tile value (old behaviour)
     return tiles[ty * width + tx];
 }
+
 
 
 int Map::getTile(int x, int y) const {
@@ -276,7 +293,7 @@ bool Map::loadColCSV(const std::string& path)
     }
 
     if (row != height) {
-        SDL_Log("Collision CSV height mismatch");
+        SDL_Log("Loaded Collision CSV: %dx%d", width, height);
         return false;
     }
 

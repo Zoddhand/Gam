@@ -17,11 +17,20 @@ Orc::Orc(SDL_Renderer* renderer,
 
     obj.facing = true;
     obj.velx = 1.0f;   // patrol speed
+    obj.avoidEdges = true;
     obj.attSpeed = 5;
     obj.damage = dam;
 	audio.hitSfx = "orc_hit";
 	audio.deathSfx = "orc_death";
 	canBlock = block;
+
+    // initialize random pause cooldown so they don't all pause at once
+    // Start in a paused state so newly spawned orcs may begin idle
+    paused = true;
+    pauseTimer = rand() % (PAUSE_MAX - PAUSE_MIN + 1) + PAUSE_MIN;
+    obj.velx = 0; // don't move while paused
+    // set cooldown that will be used after this initial pause
+    pauseCooldown = rand() % (COOLDOWN_MAX - COOLDOWN_MIN + 1) + COOLDOWN_MIN;
 }
 
 void Orc::aiUpdate(Player& player, Map& map)
@@ -55,15 +64,61 @@ void Orc::aiUpdate(Player& player, Map& map)
     }
 
     // --------------------
+    // Random pause (idle) behaviour
+    // --------------------
+    if (!obj.attacking && knockbackTimer <= 0 && !blocking) {
+        if (pauseCooldown > 0) --pauseCooldown;
+
+        if (paused) {
+            // If player is close, interrupt pause and resume chasing
+            if (sameLevel && std::abs(dist) < 80) {
+                paused = false;
+                obj.facing = (dist > 0);
+                obj.velx = obj.facing ? 1.0f : -1.0f;
+            }
+            else {
+                if (pauseTimer > 0) --pauseTimer;
+                obj.velx = 0;
+                if (pauseTimer <= 0) {
+                    paused = false;
+                    // Choose a random direction to resume moving
+                    bool faceRight = (rand() % 2) == 0;
+                    obj.facing = faceRight;
+                    obj.velx = obj.facing ? 1.0f : -1.0f;
+                }
+            }
+        }
+        else {
+            if (pauseCooldown <= 0) {
+                // small per-frame chance to enter a pause
+                if ((rand() % 100) < 3) {
+                    // Only enter a pause if player is not nearby
+                    if (!(sameLevel && std::abs(dist) < 80)) {
+                        paused = true;
+                        pauseTimer = rand() % (PAUSE_MAX - PAUSE_MIN + 1) + PAUSE_MIN;
+                        pauseCooldown = rand() % (COOLDOWN_MAX - COOLDOWN_MIN + 1) + COOLDOWN_MIN;
+                        obj.velx = 0;
+                    } else {
+                        // player is too close; delay next pause attempt
+                        pauseCooldown = COOLDOWN_MIN;
+                    }
+                }
+            }
+        }
+    }
+
+    // --------------------
     // Movement intent
     // --------------------
     if (!obj.attacking && knockbackTimer <= 0 && !blocking) {
-        if (sameLevel && std::abs(dist) < 80 && playerInFront) {
-            obj.velx = (dist < 0) ? -1.0f : 1.0f;   
-            obj.facing = obj.velx > 0;
-        }
-        else {
-            obj.velx = obj.facing ? 1.0f : -1.0f;
+        if (!paused) {
+            if (sameLevel && std::abs(dist) < 80 && playerInFront) {
+                obj.velx = (dist < 0) ? -1.0f : 1.0f;   
+                obj.facing = obj.velx > 0;
+            }
+            else {
+                obj.velx = obj.facing ? 1.0f : -1.0f;
+            }
         }
     }
     else if (!obj.attacking && knockbackTimer > 0) {

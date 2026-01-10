@@ -4,7 +4,7 @@
 
 class Arrow {
 public:
-    Arrow(SDL_Renderer* renderer, float x, float y, float vx, float vy);
+    Arrow(SDL_Renderer* renderer, float x, float y, float vx, float vy, bool trapSprite = false);
     ~Arrow();
 
     void update(Map& map);

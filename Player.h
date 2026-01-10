@@ -13,4 +13,8 @@ public:
 
     // Controller-driven input overload (declared)
     void input(const Controller::State& cs);
+
+    // Buffer to allow a quick tap of Down to be used with Jump to drop through
+    int downPressBufferTimer;
+    bool downPressedLastFrame;
 };

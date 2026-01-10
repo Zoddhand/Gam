@@ -37,6 +37,8 @@ public:
     static constexpr int SPAWN_FALLINGTRAP = 83;   // falling trap spawn
     static constexpr int SPAWN_SKELETON = 84;      // skeleton spawn
     static constexpr int SPAWN_ARCHER = 85;        // archer spawn
+    static constexpr int SPAWN_ARROWTRAP_LEFT = 101; // arrow trap that shoots left
+    static constexpr int SPAWN_ARROWTRAP_RIGHT = 102; // arrow trap that shoots right
 
     // Backwards-compatible aliases used elsewhere in the codebase
     static constexpr int TRAP_TILE = SPAWN_SPIKES;

@@ -1,7 +1,5 @@
 #include "Player.h"
 #include <SDL3/SDL.h>
-#include <SDL3_image/SDL_image.h>
-#include <iostream>
 #include "Sound.h"
 
 Player::Player(SDL_Renderer* renderer,
@@ -14,6 +12,10 @@ Player::Player(SDL_Renderer* renderer,
     obj.x = 50;
     obj.y = 100;
     jumpToken = 2;
+
+    // buffer for allowing a quick tap of Down to be used with Jump
+    downPressBufferTimer = 0;
+    downPressedLastFrame = false;
 }
 
 
@@ -61,7 +63,14 @@ void Player::input(const bool* keys) {
 
 
     // If player presses Down + Jump while on ground -> drop through one-way platforms
-    bool downHeld = keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN];
+    bool currentDown = keys[SDL_SCANCODE_S] || keys[SDL_SCANCODE_DOWN];
+    // detect tap of Down and start a short buffer window
+    if (currentDown && !downPressedLastFrame) {
+        downPressBufferTimer = 12; // ~12 frames window to press jump
+    }
+    bool downHeld = currentDown || (downPressBufferTimer > 0);
+    if (downPressBufferTimer > 0) --downPressBufferTimer;
+
     if (keys[SDL_SCANCODE_SPACE] && !jumpPressedLastFrame && !obj.attacking && jumpToken > 0)
     {
         if (downHeld && obj.onGround)
@@ -85,6 +94,7 @@ void Player::input(const bool* keys) {
     }
 
     jumpPressedLastFrame = keys[SDL_SCANCODE_SPACE];
+    downPressedLastFrame = currentDown;
 }
 
 // Controller input overload
@@ -128,8 +138,16 @@ void Player::input(const Controller::State& cs) {
 
     // Use controller-provided rising-edge flag so repeated frames of a held button
     // do not consume multiple jumps. This prevents the "stuck" double-jump issue.
+    // Allow a quick tap of Down to count for a subsequent Jump press via buffer
+    bool currentDown = cs.down;
+    if (currentDown && !downPressedLastFrame) {
+        downPressBufferTimer = 12;
+    }
+    bool downHeld = currentDown || (downPressBufferTimer > 0);
+    if (downPressBufferTimer > 0) --downPressBufferTimer;
+
     if (cs.jumpPressed && !obj.attacking && jumpToken > 0) {
-        if (cs.down && obj.onGround) {
+        if (downHeld && obj.onGround) {
             obj.ignoreOneWayTimer = 12; // drop-through window
         } else {
             obj.vely = -5.5f;
@@ -142,4 +160,6 @@ void Player::input(const Controller::State& cs) {
             }
         }
     }
+
+    downPressedLastFrame = currentDown;
 }

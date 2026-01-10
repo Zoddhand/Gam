@@ -3,27 +3,45 @@
 #include <cmath>
 #include "Sound.h"
 
-// Shared texture for all arrows
+// Shared texture for archer arrows and trap arrows
 static SDL_Texture* s_arrowTex = nullptr;
+static SDL_Texture* s_trapArrowTex = nullptr;
 
-Arrow::Arrow(SDL_Renderer* renderer, float x_, float y_, float vx, float vy)
+Arrow::Arrow(SDL_Renderer* renderer, float x_, float y_, float vx, float vy, bool trapSprite)
     : x(x_), y(y_), velx(vx), vely(vy)
 {
 	y = y_ - h * 0.5f; // center vertically
     // Load shared texture once using provided renderer
-    if (renderer && !s_arrowTex) {
-        SDL_Surface* surf = IMG_Load("Assets/Sprites/Arrow.png");
-        if (surf) {
-            s_arrowTex = SDL_CreateTextureFromSurface(renderer, surf);
-            if (s_arrowTex) SDL_SetTextureScaleMode(s_arrowTex, SDL_SCALEMODE_NEAREST);
-            SDL_DestroySurface(surf);
+    if (renderer) {
+        if (trapSprite) {
+            if (!s_trapArrowTex) {
+                SDL_Surface* surf = IMG_Load("Assets/Sprites/trap_arrow.png");
+                if (surf) {
+                    s_trapArrowTex = SDL_CreateTextureFromSurface(renderer, surf);
+                    if (s_trapArrowTex) SDL_SetTextureScaleMode(s_trapArrowTex, SDL_SCALEMODE_NEAREST);
+                    SDL_DestroySurface(surf);
+                } else {
+                    SDL_Log("Arrow: failed to load sprite 'Assets/Sprites/trap_arrow.png': %s", SDL_GetError());
+                }
+            }
+            tex = s_trapArrowTex;
         } else {
-            SDL_Log("Arrow: failed to load sprite 'Assets/Sprites/Arrow.png': %s", SDL_GetError());
+            if (!s_arrowTex) {
+                SDL_Surface* surf = IMG_Load("Assets/Sprites/Arrow.png");
+                if (surf) {
+                    s_arrowTex = SDL_CreateTextureFromSurface(renderer, surf);
+                    if (s_arrowTex) SDL_SetTextureScaleMode(s_arrowTex, SDL_SCALEMODE_NEAREST);
+                    SDL_DestroySurface(surf);
+                } else {
+                    SDL_Log("Arrow: failed to load sprite 'Assets/Sprites/Arrow.png': %s", SDL_GetError());
+                }
+            }
+            tex = s_arrowTex;
         }
     }
 
-    // Instance uses shared texture (may be null -> fallback drawing)
-    tex = s_arrowTex;
+    // Fallback: if trap sprite requested but failed to load, try default arrow texture
+    if (!tex && s_arrowTex) tex = s_arrowTex;
 }
 
 Arrow::~Arrow() {

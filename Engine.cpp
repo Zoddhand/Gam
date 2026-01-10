@@ -4,6 +4,7 @@
 #include "GameOver.h"
 #include "Archer.h"
 #include "Arrow.h"
+#include "ArrowTrap.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <iostream>
@@ -47,12 +48,15 @@ int main(int argc, char* argv[])
 
 // --------------------------------------------------
 
+Engine* gEngine = nullptr; // define global pointer
+
 Engine::Engine()
 {
+    // register global pointer
+    gEngine = this;
+
     // Initialize video + audio subsystems
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD) != 0) {
-        SDL_Log("SDL_Init failed: %s", SDL_GetError());
-    }
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD);
 
     window = SDL_CreateWindow("Platformer", SCREEN_W * 2, SCREEN_H * 2, SDL_WINDOW_BORDERLESS);
     /* Move to 3rd monitor */
@@ -132,6 +136,8 @@ Engine::Engine()
         sound->loadWav("arrow", "Assets/Sound/arrow.wav");
         sound->loadWav("arrow_impact", "Assets/Sound/arrow_impact.wav");
         sound->loadWav("monster", "Assets/Sound/monster.wav");
+        sound->loadWav("orc_death", "Assets/Sound/orc_death.wav");
+        sound->loadWav("arrow_empty", "Assets/Sound/arrow_empty.wav");
         sound->playMusic("music", true, 32);
     }
 
@@ -156,6 +162,9 @@ Engine::~Engine()
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+
+    // clear global engine pointer
+    gEngine = nullptr;
 }
 
 // --------------------------------------------------
@@ -174,8 +183,12 @@ void Engine::cleanupObjects()
 
 int Engine::getNextLevelID(int dir)
 {
-    int r = currentLevelID / GRID_COLS;
-    int c = currentLevelID % GRID_COLS;
+    // Convert 1-based level ID to 0-based index for grid math
+    int idx = currentLevelID - 1;
+    if (idx < 0) return -1;
+
+    int r = idx / GRID_COLS;
+    int c = idx % GRID_COLS;
 
     if (dir == LEFT)  c--;
     if (dir == RIGHT) c++;
@@ -227,6 +240,14 @@ void Engine::handleEvents()
             else menu->handleInput(keys);
         }
     }
+
+	if (keys[SDL_SCANCODE_ESCAPE]) {
+        running = false;
+    }
+    if (keys[SDL_SCANCODE_5])
+    {
+		loadLevel(48); // level ID 45 is a test room
+    }
 }
 
 // --------------------------------------------------
@@ -234,6 +255,26 @@ int t1 = 0;
 int t2 = 0;
 void Engine::update()
 {
+    // If hitstop active, decrement and skip gameplay updates (but allow input and rendering)
+    if (hitstopTicks > 0) {
+        --hitstopTicks;
+        if (inMenu) {
+            if (menu) menu->update();
+            int sel = menu->consumeSelection();
+            if (sel != -1) {
+                if (sel == 0) { // Play
+                    inMenu = false;
+                }
+            }
+            if (sound) sound->update();
+            return;
+        }
+
+        // While hitstop is active, still update sound
+        if (sound) sound->update();
+        return;
+    }
+
     if (inMenu) {
         if (menu) menu->update();
         int sel = menu->consumeSelection();
@@ -277,12 +318,12 @@ void Engine::update()
 
                 for (auto* f : fallT)
                 {
-                    f->checkTrigger(*player);
+                    f->checkTrigger(*player, map);
                     f->update(map);
                     for (auto* r : orc)
-                        f->checkTrigger(*r);
+                        f->checkTrigger(*r, map);
                     for (auto* a : archers)
-                        f->checkTrigger(*a);
+                        f->checkTrigger(*a, map);
                 }
 
                 for (auto* o : objects)
@@ -308,8 +349,71 @@ void Engine::update()
     }
 
     if (!player) return;
-    if (player->obj.alive && !inGameOver)
+    if (player->obj.alive && !inGameOver) {
+        // Preserve previous X to determine movement direction for collision resolution
+        float prevPlayerX = player->obj.x;
         player->update(map);
+
+        // Prevent player from walking through orcs: if player's hitbox intersects an orc,
+        // push the player out horizontally to the side of the orc and stop horizontal velocity.
+        for (auto* e : orc) {
+            if (!e || !e->obj.alive) continue;
+
+            SDL_FRect pr = player->getRect();
+            SDL_FRect er = e->getRect();
+
+            if (SDL_HasRectIntersectionFloat(&pr, &er)) {
+                // If player moved right into the orc, snap player to left side
+                if (player->obj.x > prevPlayerX) {
+                    player->obj.x = e->obj.x - player->obj.tileWidth;
+                }
+                // If player moved left into the orc, snap player to right side
+                else if (player->obj.x < prevPlayerX) {
+                    player->obj.x = e->obj.x + e->obj.tileWidth;
+                }
+                else {
+                    // No horizontal movement this frame — nudge based on centers
+                    float pCenter = pr.x + pr.w * 0.5f;
+                    float eCenter = er.x + er.w * 0.5f;
+                    if (pCenter < eCenter)
+                        player->obj.x = e->obj.x - player->obj.tileWidth;
+                    else
+                        player->obj.x = e->obj.x + e->obj.tileWidth;
+                }
+
+                player->obj.velx = 0.0f;
+                // Update prevPlayerX so multiple overlapping orcs resolve correctly in a single frame
+                prevPlayerX = player->obj.x;
+            }
+        }
+        // Also prevent walking through archers using same resolution logic
+        for (auto* a : archers) {
+            if (!a || !a->obj.alive) continue;
+
+            SDL_FRect pr = player->getRect();
+            SDL_FRect ar = a->getRect();
+
+            if (SDL_HasRectIntersectionFloat(&pr, &ar)) {
+                if (player->obj.x > prevPlayerX) {
+                    player->obj.x = a->obj.x - player->obj.tileWidth;
+                }
+                else if (player->obj.x < prevPlayerX) {
+                    player->obj.x = a->obj.x + a->obj.tileWidth;
+                }
+                else {
+                    float pCenter = pr.x + pr.w * 0.5f;
+                    float aCenter = ar.x + ar.w * 0.5f;
+                    if (pCenter < aCenter)
+                        player->obj.x = a->obj.x - player->obj.tileWidth;
+                    else
+                        player->obj.x = a->obj.x + a->obj.tileWidth;
+                }
+
+                player->obj.velx = 0.0f;
+                prevPlayerX = player->obj.x;
+            }
+        }
+    }
     else
     {
         // Enter game over state (do not immediately respawn)
@@ -338,6 +442,8 @@ void Engine::update()
                     // Destroy arrow and play feedback
                     a->alive = false;
                     if (gSound) gSound->playSfx("arrow_impact");
+                    // trigger small hitstop for arrow parry
+                    if (gEngine) gEngine->triggerHitstop(4);
                 }
             }
 
@@ -347,6 +453,8 @@ void Engine::update()
                 if (SDL_HasRectIntersectionFloat(&ar, &pr)) {
                     player->takeDamage(15.0f, ar.x + ar.w*0.5f, 3, 6, 30, 2.5f, -4.0f);
                     a->alive = false;
+                    // small hitstop when player is hit by arrow
+                    if (gEngine) gEngine->triggerHitstop(6);
                 }
             }
         }
@@ -420,7 +528,7 @@ void Engine::render()
         return;
     }
 
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_SetRenderDrawColor(renderer, 31, 14, 28, 255);
     SDL_RenderClear(renderer);
     
     map.draw(renderer, camera.x, camera.y);
@@ -601,6 +709,10 @@ void Engine::loadLevel(int levelID)
         case Map::SPAWN_ARCHER:
             archers.push_back(new Archer(renderer, "Assets/Sprites/archer.png", 12, 16, px, py, 10));
             break;
+        case Map::SPAWN_ARROWTRAP_LEFT:
+        case Map::SPAWN_ARROWTRAP_RIGHT:
+            objects.push_back(new ArrowTrap(renderer, s.x, s.y, s.tileIndex));
+            break;
         }
     }
 
@@ -637,4 +749,13 @@ void Engine::setPlayerFacingFromEntry(int entryTile)
     default:
         break;
     }
+}
+
+// New: trigger a hitstop from gameplay code
+void Engine::triggerHitstop(int ticks)
+{
+    // Clamp to a reasonable range
+    if (ticks < 1) ticks = 1;
+    if (ticks > 60) ticks = 60;
+    hitstopTicks = ticks;
 }

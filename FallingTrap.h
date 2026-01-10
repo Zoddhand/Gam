@@ -8,7 +8,7 @@ public:
 
     void update(Map& map);
     void remove();
-    void checkTrigger(class GameObject& actor);
+    void checkTrigger(class GameObject& actor, Map& map);
 
 private:
     bool triggered = false;

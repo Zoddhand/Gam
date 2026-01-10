@@ -11,7 +11,7 @@ FallingTrap::FallingTrap(SDL_Renderer* renderer, int tileX, int tileY)
     y = tileY * Map::TILE_SIZE;
 }
 
-void FallingTrap::checkTrigger(GameObject& actor) {
+void FallingTrap::checkTrigger(GameObject& actor, Map& map) {
     if (triggered || falling || !alive) return;
 
     SDL_FRect a = actor.getRect();
@@ -26,7 +26,39 @@ void FallingTrap::checkTrigger(GameObject& actor) {
 
     bool actorBelow = (a.y > y);
 
-    if (horizontallyUnder && actorBelow) {
+    if (!(horizontallyUnder && actorBelow)) return;
+
+    // New: check for occluding solid tiles between trap and actor vertically.
+    // Compute tile columns that the trap covers (use trap center column)
+    int trapCenterTileX = int((x + width * 0.5f) / Map::TILE_SIZE);
+
+    // Compute tile row for trap and actor
+    int trapTileY = int(y / Map::TILE_SIZE);
+    int actorTileY = int(a.y / Map::TILE_SIZE);
+
+    // If actorTileY is above trapTileY, actor is above; we only trigger when actor is below the trap
+    // Iterate from trapTileY+1 to actorTileY (exclusive of actor tile) and if any solid tile exists in that column,
+    // then there's a platform between trap and actor, so do not trigger.
+
+    int startRow = trapTileY + 1;
+    int endRow = actorTileY; // actor's tile row where their top is
+    if (endRow <= startRow) {
+        // actor is directly adjacent or same tile vertically; allow trigger
+        triggered = true;
+        delayTimer = delayTicks;
+        triggerer = &actor;
+        return;
+    }
+
+    bool occluded = false;
+    for (int ty = startRow; ty < endRow; ++ty) {
+        if (map.isSolid(trapCenterTileX, ty)) {
+            occluded = true;
+            break;
+        }
+    }
+
+    if (!occluded) {
         triggered = true;
         delayTimer = delayTicks;
         triggerer = &actor;

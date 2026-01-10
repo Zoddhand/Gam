@@ -22,6 +22,8 @@ public:
         int damage = 10;
         bool canMove = true;
         int ignoreOneWayTimer = 0;
+        // When true, this instance will avoid stepping off map edges while patrolling
+        bool avoidEdges = false;
     }; object obj;
 
     struct Audio {

@@ -9,44 +9,84 @@
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
-        "044.tmx": {
-            "scale": 4,
+        "043.tmx": {
+            "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -128,
-                "y": 512.125
+                "x": -234.5,
+                "y": 402.66666666666663
+            }
+        },
+        "044.tmx": {
+            "scale": 2,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": -80.25,
+                "y": 472.5
             }
         },
         "045.tmx": {
-            "scale": 4.6460937499999995,
+            "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -128.06457037161596,
-                "y": 127.95695308558939
+                "x": -204.5,
+                "y": 145.66666666666663
             }
         },
         "046.tmx": {
-            "scale": 5.5,
-            "selectedLayer": 2,
+            "scale": 4,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": -0.09090909090909349,
-                "y": 128.1818181818182
+                "x": 4.125,
+                "y": 144.25
             }
         },
         "047.tmx": {
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -103.83333333333331,
+                "x": -166.83333333333331,
                 "y": 102.66666666666664
+            }
+        },
+        "048.tmx": {
+            "scale": 2,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": -81.25,
+                "y": -11
+            }
+        },
+        "049.tmx": {
+            "scale": 3,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": 128.16666666666666,
+                "y": 68.33333333333334
+            }
+        },
+        "050.tmx": {
+            "scale": 4,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": -170.875,
+                "y": 102.5
             }
         },
         "054.tmx": {
             "scale": 3,
-            "selectedLayer": 1,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": -128,
-                "y": 512.1666666666666
+                "x": -116.16666666666669,
+                "y": 540
+            }
+        },
+        "fullMap.tmx": {
+            "scale": 3,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1706.8333333333333,
+                "y": 279
             }
         },
         "tileset.tsx": {

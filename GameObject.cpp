@@ -1,8 +1,10 @@
 ﻿#include "GameObject.h"
 #include "Sound.h"
+#include "Engine.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
-#include "Sound.h"
+#include <cmath>
+#include <algorithm>
 
 GameObject::GameObject(SDL_Renderer* renderer, const std::string& spritePath, int tw, int th) {
     SDL_Surface* surf = IMG_Load(spritePath.c_str());
@@ -12,6 +14,8 @@ GameObject::GameObject(SDL_Renderer* renderer, const std::string& spritePath, in
     }
     SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
     SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
+    // enable alpha blending for sprites
+    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
     SDL_DestroySurface(surf);
 
     // Parameters: texture, frameW, frameH, frames, rowY, innerX, innerY, innerW, innerH
@@ -33,7 +37,22 @@ SDL_FRect GameObject::getRect() const {
 }
 
 SDL_FRect GameObject::getAttackRect() const {
-    return { obj.facing ? obj.x + 12 : obj.x - 12, obj.y + 4, 12, 8 };
+    // Default behavior: provide a hitbox only during strike frames.
+    // Delay the hitbox until later in the attack so global hitstop lines up with the visible swing.
+    if (!obj.attacking)
+        return { 0,0,0,0 };
+
+    // Use a common wind-up rule for all game objects: the strike becomes active when
+    // attackTimer has counted down into the final two attSpeed units (~4th frame).
+    if (obj.attackTimer > (obj.attSpeed * 2))
+        return { 0,0,0,0 };
+
+    float w = float(obj.tileWidth);
+    float h = 8.0f;
+    float x = obj.facing ? obj.x + obj.tileWidth : obj.x - w;
+    float y = obj.y + 4;
+
+    return { x, y, w, h };
 }
 
 void GameObject::draw(SDL_Renderer* renderer, int camX, int camY) {
@@ -46,8 +65,11 @@ void GameObject::draw(SDL_Renderer* renderer, int camX, int camY) {
 
         dst.w = currentAnim->frameWidth * scaleX;   // full 100x100 scaled
         dst.h = currentAnim->frameHeight * scaleY;
-        dst.x = obj.x - camX - currentAnim->getInnerX() * scaleX;
-        dst.y = obj.y - camY - currentAnim->getInnerY() * scaleY;
+        // Round destination position to integer pixels to keep pixels sharp
+        float rawX = obj.x - camX - currentAnim->getInnerX() * scaleX;
+        float rawY = obj.y - camY - currentAnim->getInnerY() * scaleY;
+        dst.x = std::round(rawX);
+        dst.y = std::round(rawY);
 
         SDL_FRect src = currentAnim->getSrcRect();
         SDL_FlipMode flip = obj.facing ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL;
@@ -70,7 +92,48 @@ void GameObject::update(Map& map)
     // --------------------
     // Horizontal movement
     // --------------------
-    obj.x += obj.velx;
+    // If configured to avoid edges, detect lack of ground ahead and turn around instead of moving
+    if (obj.avoidEdges && obj.velx != 0 && knockbackTimer <= 0 && !obj.attacking) {
+        float nextX = obj.x + obj.velx;
+        int l = int(nextX / map.TILE_SIZE);
+        int r = int((nextX + obj.tileWidth - 1) / map.TILE_SIZE);
+        int t = int(obj.y / map.TILE_SIZE);
+        int b = int((obj.y + obj.tileHeight - 1) / map.TILE_SIZE);
+
+        // Determine front column based on movement direction
+        int frontX = obj.velx > 0 ? r : l;
+        int footY = b + 1;
+
+        bool blockedByEdge = false;
+        // If frontX is outside map -> consider it an edge and flip
+        if (frontX < 0 || frontX >= map.width) blockedByEdge = true;
+        else {
+            // If tile under front is not solid -> it's a ledge; flip
+            if (!map.isSolid(frontX, footY)) blockedByEdge = true;
+
+            // Additionally, treat spawn portal tiles as edges so enemies don't step onto transition tiles
+            // Portal spawn values: 96 (LEFT), 97 (UP), 98 (RIGHT), 99 (DOWN)
+            if (!blockedByEdge && !map.spawn.empty()) {
+                if (footY >= 0 && footY < map.height) {
+                    int sp = map.spawn[footY * map.width + frontX];
+                    if (sp == 96 || sp == 97 || sp == 98 || sp == 99)
+                        blockedByEdge = true;
+                }
+            }
+        }
+
+        if (blockedByEdge) {
+            obj.facing = !obj.facing;
+            obj.velx = 0;
+            // prevent AI from immediately overriding this flip and moving back onto the edge
+            knockbackTimer = 6; // short pause in AI control
+            // skip movement this frame
+        } else {
+            obj.x += obj.velx;
+        }
+    } else {
+        obj.x += obj.velx;
+    }
 
     int leftTile = int(obj.x / map.TILE_SIZE);
     int rightTile = int((obj.x + obj.tileWidth - 1) / map.TILE_SIZE);
@@ -270,6 +333,45 @@ void GameObject::update(Map& map)
             obj.onGround = true;
         }
     }
+
+    // If this GameObject is marked to avoid edges and somehow ended up standing on a portal
+    // (spawn tile 96..99), push it off the portal and flip to avoid getting stuck.
+    if (obj.avoidEdges && !map.spawn.empty()) {
+        int leftTile = int(obj.x / map.TILE_SIZE);
+        int rightTile = int((obj.x + obj.tileWidth - 1) / map.TILE_SIZE);
+        int bottomTile = int((obj.y + obj.tileHeight - 1) / map.TILE_SIZE);
+
+        if (bottomTile >= 0 && bottomTile < map.height) {
+            // check both tiles under the object's feet
+            auto checkAndResolvePortal = [&](int tx) {
+                if (tx < 0 || tx >= map.width) return false;
+                int sp = map.spawn[bottomTile * map.width + tx];
+                if (sp == 96 || sp == 97 || sp == 98 || sp == 99) {
+                    // Nudge the object off this tile depending on approach
+                    // If object center is left of tile center, push to left; otherwise push to right
+                    float center = obj.x + obj.tileWidth * 0.5f;
+                    float tileCenter = tx * map.TILE_SIZE + map.TILE_SIZE * 0.5f;
+                    if (center < tileCenter) {
+                        obj.x = float(tx * map.TILE_SIZE) - obj.tileWidth; // place left
+                        obj.facing = true; // face right after nudging
+                    } else {
+                        obj.x = float((tx + 1) * map.TILE_SIZE);
+                        obj.facing = false; // face left after nudging
+                    }
+                    obj.velx = 0.0f;
+                    knockbackTimer = 6;
+                    return true;
+                }
+                return false;
+            };
+
+            if (checkAndResolvePortal(leftTile)) {
+                // resolved
+            } else {
+                checkAndResolvePortal(rightTile);
+            }
+        }
+    }
 }
 
 void GameObject::startFlash(int flashes, int intervalTicks) {
@@ -314,6 +416,16 @@ void GameObject::takeDamage(
 
     // Play hit sound
     if (gSound) gSound->playSfx(audio.hitSfx);
+
+    // Trigger a short global hitstop when an object takes damage
+    if (gEngine) gEngine->triggerHitstop(6);
+
+    // Only shake the camera if the player itself was hit
+    if (gEngine && gEngine->player == this) {
+        int dur = std::min(12, std::max(4, int(amount / 3)));
+        int mag = std::min(12, std::max(2, int(amount / 5)));
+        gEngine->camera.shake(dur, mag);
+    }
 
     // --------------------
     // Invulnerability timer

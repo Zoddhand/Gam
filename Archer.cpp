@@ -19,9 +19,13 @@ Archer::Archer(SDL_Renderer* renderer,
     // start patrolling to the right by default
     obj.facing = true;
     obj.velx = 1.0f;
+    obj.avoidEdges = true;
     audio.hitSfx = "hit";
     audio.deathSfx = "death";
     shotFired = false;
+	obj.maxHealth = 50.0f;
+    audio.hitSfx = "orc_hit";
+    audio.deathSfx = "orc_death";
 }
 
 void Archer::aiUpdate(Player& player, Map& map, std::vector<Arrow*>& projectiles)
@@ -36,8 +40,39 @@ void Archer::aiUpdate(Player& player, Map& map, std::vector<Arrow*>& projectiles
     bool sameLevel = std::abs(player.obj.y - obj.y) < obj.tileHeight;
     bool playerInFront = (dx > 0 && obj.facing) || (dx < 0 && !obj.facing);
 
-    // Only attempt to start shooting if within range, on same level, cooldown expired and not already in attack
-    if (sameLevel && dist <= range && shootCooldown <= 0 && !obj.attacking)
+    // Line-of-sight check: sample along the line between archer center and player center
+    auto hasLineOfSight = [&](const Player& p, Map& m)->bool {
+        float sx = obj.x + obj.tileWidth*0.5f;
+        float sy = obj.y + obj.tileHeight*0.5f;
+        float tx = p.obj.x + p.obj.tileWidth*0.5f;
+        float ty = p.obj.y + p.obj.tileHeight*0.5f;
+        float ddx = tx - sx;
+        float ddy = ty - sy;
+        float pdist = std::sqrt(ddx*ddx + ddy*ddy);
+        if (pdist <= 0.0001f) return true;
+
+        // step a few pixels at a time; using 4px gives good coverage without being expensive
+        const float stepSize = 4.0f;
+        int steps = int(pdist / stepSize);
+        if (steps < 1) steps = 1;
+
+        for (int i = 1; i <= steps; ++i) {
+            float t = float(i) / float(steps);
+            float ix = sx + ddx * t;
+            float iy = sy + ddy * t;
+            int txi = int(ix / m.TILE_SIZE);
+            int tyi = int(iy / m.TILE_SIZE);
+
+            // Out of bounds -> treat as blocked
+            if (txi < 0 || txi >= m.width || tyi < 0 || tyi >= m.height) return false;
+
+            if (m.isSolid(txi, tyi)) return false;
+        }
+        return true;
+    };
+
+    // Only attempt to start shooting if within range, has line-of-sight, cooldown expired and not already in attack
+    if (dist <= range && hasLineOfSight(player, map) && shootCooldown <= 0 && !obj.attacking)
     {
         // face the player when starting to shoot
         obj.facing = dx > 0;
@@ -75,10 +110,10 @@ void Archer::aiUpdate(Player& player, Map& map, std::vector<Arrow*>& projectiles
             obj.velx = (dx < 0) ? -1.0f : 1.0f;
             obj.facing = obj.velx > 0;
         }
-        else {
+        /*else {
             // regular patrol
             obj.velx = obj.facing ? 1.0f : -1.0f;
-        }
+        }*/
     } else if (!obj.attacking && knockbackTimer > 0) {
         obj.facing = obj.velx > 0;
     } else {
@@ -88,6 +123,8 @@ void Archer::aiUpdate(Player& player, Map& map, std::vector<Arrow*>& projectiles
 
     // --------------------
     // WALL + LEDGE CHECK (AI only) - prevent walking off ledges
+    // Updated to match GameObject::update behaviour: treat out-of-bounds and portal tiles as edges
+    // and set a short knockbackTimer so AI doesn't instantly walk back onto the edge.
     // --------------------
     if (!obj.attacking && knockbackTimer <= 0) {
         float nextX = obj.x + obj.velx;
@@ -108,12 +145,28 @@ void Archer::aiUpdate(Player& player, Map& map, std::vector<Arrow*>& projectiles
         // Ledge (tile in front & below)
         int frontX = obj.velx > 0 ? r : l;
         int footY = b + 1;
-        if (!map.isSolid(frontX, footY))
-            blocked = true;
+
+        // If frontX is outside map -> consider it an edge and flip
+        if (frontX < 0 || frontX >= map.width) blocked = true;
+        else {
+            if (!map.isSolid(frontX, footY))
+                blocked = true;
+
+            // Additionally, treat spawn portal tiles as edges so archers don't step onto transition tiles
+            if (!blocked && !map.spawn.empty()) {
+                if (footY >= 0 && footY < map.height) {
+                    int sp = map.spawn[footY * map.width + frontX];
+                    if (sp == 96 || sp == 97 || sp == 98 || sp == 99)
+                        blocked = true;
+                }
+            }
+        }
 
         if (blocked) {
             obj.facing = !obj.facing;
             obj.velx = 0; // let next frame pick direction
+            // short pause so AI doesn't immediately override flip and move back onto the edge
+            knockbackTimer = 6;
         }
     }
 
