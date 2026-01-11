@@ -112,6 +112,7 @@ void Map::draw(SDL_Renderer* renderer, int camX, int camY)
 }
 
 
+
 std::vector<Map::ObjectSpawn> Map::getObjectSpawns() const
 {
     std::vector<ObjectSpawn> out;
@@ -188,6 +189,7 @@ bool Map::loadCSV(const std::string& path)
     }
         
     tiles.clear();
+    tiles2.clear();
     width = 0;
     height = 0;
 
@@ -212,6 +214,47 @@ bool Map::loadCSV(const std::string& path)
         height++;
     }
 
+    return true;
+}
+
+bool Map::loadLayer2CSV(const std::string& path)
+{
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        SDL_Log("Failed to open map Layer2 CSV: %s", path.c_str());
+        return false;
+    }
+
+    tiles2.clear();
+    tiles2.reserve(width * height);
+
+    std::string line;
+    int row = 0;
+
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string cell;
+        int col = 0;
+
+        while (std::getline(ss, cell, ',')) {
+            tiles2.push_back(std::stoi(cell));
+            col++;
+        }
+
+        if (col != width) {
+            SDL_Log("Layer2 CSV width mismatch at row %d", row);
+            return false;
+        }
+
+        row++;
+    }
+
+    if (row != height) {
+        SDL_Log("Layer2 CSV height mismatch: expected %d got %d", height, row);
+        return false;
+    }
+
+    SDL_Log("Loaded Layer2 CSV: %dx%d", width, height);
     return true;
 }
 
@@ -299,4 +342,56 @@ bool Map::loadColCSV(const std::string& path)
 
     SDL_Log("Loaded Collision CSV: %dx%d", width, height);
     return true;
+}
+
+// Draw the optional foreground layer (Tile Layer 2) on top of entities
+void Map::drawForeground(SDL_Renderer* renderer, int camX, int camY)
+{
+    if (tiles2.empty()) return;
+
+    // If no tileset, draw fallback rects with a different color so they stand out
+    if (!tilesetTexture)
+    {
+        SDL_SetRenderDrawColor(renderer, 180, 200, 255, 200);
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                int tileIndex = tiles2[y * width + x];
+                if (tileIndex < 0) continue;
+                SDL_FRect r{ float(x * TILE_SIZE - camX), float(y * TILE_SIZE - camY), float(TILE_SIZE), float(TILE_SIZE) };
+                SDL_RenderFillRect(renderer, &r);
+            }
+        }
+        return;
+    }
+
+    SDL_FRect src{ 0.0f, 0.0f, float(TILE_SIZE), float(TILE_SIZE) };
+    SDL_FRect dest{ 0.0f, 0.0f, float(TILE_SIZE), float(TILE_SIZE) };
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            int tileIndex = tiles2[y * width + x];
+            if (tileIndex < 0) continue;
+
+            int tx = tileIndex % tileCols;
+            int ty = tileIndex / tileCols;
+
+            src.x = float(tx * TILE_SIZE);
+            src.y = float(ty * TILE_SIZE);
+            src.w = float(TILE_SIZE);
+            src.h = float(TILE_SIZE);
+
+            float rawX = float(x * TILE_SIZE - camX);
+            float rawY = float(y * TILE_SIZE - camY);
+            dest.x = std::round(rawX);
+            dest.y = std::round(rawY);
+            dest.w = float(TILE_SIZE);
+            dest.h = float(TILE_SIZE);
+
+            SDL_RenderTexture(renderer, tilesetTexture, &src, &dest);
+        }
+    }
 }

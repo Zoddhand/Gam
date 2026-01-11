@@ -271,7 +271,7 @@ SDL_FRect Orc::getAttackRect() const
         return { 0,0,0,0 };
 
     // Strike frames
-    float w = obj.tileWidth;
+    float w = obj.tileWidth * 2;
     float h = 8;
     float x = obj.facing ? obj.x + obj.tileWidth : obj.x - w;
     float y = obj.y + 4;

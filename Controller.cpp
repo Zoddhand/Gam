@@ -2,7 +2,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gamepad.h>
 
-Controller::Controller() : gpHandle(nullptr), prevJump(false), prevAttack(false) {}
+Controller::Controller() : gpHandle(nullptr), prevJump(false), prevAttack(false), prevAttackCharged(false) {}
 Controller::~Controller() { close(); }
 
 bool Controller::open(int index) {
@@ -44,9 +44,9 @@ void Controller::update() {
     if (!gp) {
         state.connected = false;
         // reset edge flags when disconnected
-        state.jump = state.attack = false;
-        state.jumpPressed = state.attackPressed = false;
-        prevJump = prevAttack = false;
+        state.jump = state.attack = state.attackCharged = false;
+        state.jumpPressed = state.attackPressed = state.attackChargedPressed = false;
+        prevJump = prevAttack = prevAttackCharged = false;
         return;
     }
 
@@ -55,14 +55,18 @@ void Controller::update() {
     // raw button states
     state.jump = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_SOUTH) != 0;
     state.attack = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_WEST) != 0;
+    // map charged attack to NORTH button (Y on many controllers)
+    state.attackCharged = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_NORTH) != 0;
 
     // compute rising-edge presses
     state.jumpPressed = (state.jump && !prevJump);
     state.attackPressed = (state.attack && !prevAttack);
+    state.attackChargedPressed = (state.attackCharged && !prevAttackCharged);
 
     // update previous raw states
     prevJump = state.jump;
     prevAttack = state.attack;
+    prevAttackCharged = state.attackCharged;
 
     bool dleft = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_LEFT) != 0;
     bool dright = SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_RIGHT) != 0;

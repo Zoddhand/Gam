@@ -11,6 +11,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 
 
 
@@ -150,20 +151,39 @@ Engine::Engine()
     gameOver = new GameOver(renderer, VIEW_SCALE);
 
     // Create backgrounds and map level ids
-    Background* sky = new Background();
-    sky->load(renderer, "Assets/Backgrounds/Sky", 7);
-    // assign levels 22,23,24,25 to sky
-    sky->addLevel(22);
-    sky->addLevel(23);
-    sky->addLevel(24);
-    sky->addLevel(25);
-    backgrounds.push_back(sky);
+    auto fileExists = [](const std::string& path) -> bool {
+        std::ifstream f(path);
+        return f.good();
+    };
+
+    // Sky background (levels 22..25)
+    std::string skyFirst = "Assets/Backgrounds/Sky/1.png";
+    if (fileExists(skyFirst)) {
+        Background* sky = new Background();
+        sky->load(renderer, "Assets/Backgrounds/Sky", 7);
+        // assign levels 22,23,24,25 to sky
+        sky->addLevel(17);
+        sky->addLevel(22);
+        sky->addLevel(23);
+        sky->addLevel(24);
+        sky->addLevel(25);
+        sky->addLevel(26);
+        sky->addLevel(27);
+        backgrounds.push_back(sky);
+    } else {
+        SDL_Log("Background: skipping missing directory Assets/Backgrounds/Sky");
+    }
 
     // example: separate background for level 45
-    Background* other = new Background();
-    other->load(renderer, "Assets/Backgrounds/Other", 7);
-    other->addLevel(45);
-    backgrounds.push_back(other);
+    std::string otherFirst = "Assets/Backgrounds/Other/1.png";
+    if (fileExists(otherFirst)) {
+        Background* other = new Background();
+        other->load(renderer, "Assets/Backgrounds/Other", 7);
+        other->addLevel(45);
+        backgrounds.push_back(other);
+    } else {
+        SDL_Log("Background: skipping missing directory Assets/Backgrounds/Other");
+    }
 }
 
 Engine::~Engine()
@@ -247,12 +267,23 @@ void Engine::handleEvents()
     // Only forward input to player if movement is allowed
     if (!inMenu) {
         if (player && !transitioning) {
-            // Prefer controller only if it is actively providing input; otherwise keyboard.
-            bool controllerActive = cs.connected && (cs.left || cs.right || cs.up || cs.down || cs.jump || cs.attack);
-            if (controllerActive) {
-                player->input(cs);
-            } else {
-                if (player) player->input(keys);
+            // If K pressed on keyboard, always prioritize keyboard so charge starts
+            if (keys && keys[SDL_SCANCODE_K]) {
+                player->input(keys);
+            }
+            else {
+                // Prefer controller only if it is actively providing input; otherwise keyboard.
+                bool keyboardActive = false;
+                if (keys) {
+                    keyboardActive = keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_S] ||
+                                     keys[SDL_SCANCODE_SPACE] || keys[SDL_SCANCODE_J] || keys[SDL_SCANCODE_K];
+                }
+                bool controllerActive = cs.connected && !keyboardActive && (cs.left || cs.right || cs.up || cs.down || cs.jump || cs.attack || cs.attackCharged);
+                if (controllerActive) {
+                    player->input(cs);
+                } else {
+                    if (player) player->input(keys);
+                }
             }
         }
     } else {
@@ -500,6 +531,7 @@ void Engine::update()
                 currentLevelID = 45;
                 loadLevel(currentLevelID);
                 if (player) player->obj.health = player->obj.maxHealth;
+                if (player) player->obj.magic = player->obj.maxMagic;
                 if (sound) sound->stopSfx("heartbeat");
                 inMenu = true;
             } else if (sel == 1) {
@@ -556,14 +588,20 @@ void Engine::render()
         for (auto* p : projectiles)
             p->draw(renderer, camera.x, camera.y);
         if (player) player->draw(renderer, camera.x, camera.y);
-        if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth);
+
+        // draw foreground layer in front of player
+        map.drawForeground(renderer, camera.x, camera.y);
+
+        // Draw HUD including magic
+        if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth, player->obj.magic, player->obj.maxMagic);
 
         gameOver->render(renderer);
         SDL_RenderPresent(renderer);
         return;
     }
 
-    SDL_SetRenderDrawColor(renderer, 31, 14, 28, 255);
+    //SDL_SetRenderDrawColor(renderer, 31, 14, 28, 255);
+    SDL_SetRenderDrawColor(renderer, 0,0,0, 255);
     SDL_RenderClear(renderer);
 
     // draw background for current level if any
@@ -574,7 +612,7 @@ void Engine::render()
         }
     }
     
-    map.draw(renderer, camera.x, camera.y);
+    map.drawForeground(renderer, camera.x, camera.y);
     for (auto* o : orc)
         o->draw(renderer, camera.x, camera.y);
 
@@ -593,8 +631,12 @@ void Engine::render()
 
     if (player) player->draw(renderer, camera.x, camera.y);
 
+    // draw foreground layer in front of player
+    map.draw(renderer, camera.x, camera.y);
+    
+
     // Draw HUD last so it's on top
-    if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth);
+    if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth, player->obj.magic, player->obj.maxMagic);
 
     if (transitioning)
     {
@@ -613,9 +655,14 @@ void Engine::loadLevel(int levelID)
     // Preserve player health across loads
     float savedHealth = 100.0f;
     float savedMaxHealth = 100.0f;
+    // Preserve player magic across loads
+    float savedMagic = 100.0f;
+    float savedMaxMagic = 100.0f;
     if (player) {
         savedHealth = player->obj.health;
         savedMaxHealth = player->obj.maxHealth;
+        savedMagic = player->obj.magic;
+        savedMaxMagic = player->obj.maxMagic;
     }
 
     // ----------------------------------------
@@ -634,6 +681,8 @@ void Engine::loadLevel(int levelID)
     // load collision layer if present      
     map.loadColCSV("Maps/" + std::string(name) + "_Collision Layer.csv");
     map.loadTileset(renderer, "assets/Tiles/tileset.png");
+    // attempt to load optional foreground layer (Tile Layer 2)
+    map.loadLayer2CSV("Maps/" + std::string(name) + "_Tile Layer 2.csv");
 
     // ----------------------------------------
     // Determine PLAYER spawn position
@@ -710,6 +759,9 @@ void Engine::loadLevel(int levelID)
     // Restore persisted health if available
     player->obj.health = savedHealth;
     player->obj.maxHealth = savedMaxHealth;
+    // Restore persisted magic if available
+    player->obj.magic = savedMagic;
+    player->obj.maxMagic = savedMaxMagic;
 
     setPlayerFacingFromEntry(entryDirection);
 

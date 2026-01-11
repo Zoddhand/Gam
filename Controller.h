@@ -10,8 +10,10 @@ public:
         bool down = false;
         bool jump = false;        // current raw button state
         bool attack = false;      // current raw button state
+        bool attackCharged = false;      // current raw button state
         bool jumpPressed = false; // rising-edge (pressed this frame)
         bool attackPressed = false; // rising-edge
+        bool attackChargedPressed = false; // rising-edge for charged attack
         bool connected = false;
     };
 
@@ -32,4 +34,5 @@ private:
     // previous raw button states used to detect edges
     bool prevJump = false;
     bool prevAttack = false;
+    bool prevAttackCharged = false;
 };

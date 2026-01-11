@@ -63,6 +63,8 @@ public:
     Sound* sound = nullptr;
     Menu* menu = nullptr;
     bool inMenu = true;
+    // Debug: draw attack hitboxes
+    bool debugDrawAttackRects = true;
 
     // Controller instance (single controller for now)
     Controller controller;

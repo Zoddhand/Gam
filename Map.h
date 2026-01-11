@@ -12,10 +12,12 @@ public:
     int height = 0;
 
     std::vector<int> tiles;   // size = width * height
+    std::vector<int> tiles2;  // optional foreground tile layer (Tile Layer 2)
     std::vector<int> spawn;   // optional second layer
     std::vector<int> collision; // collision layer CSV
 
     bool loadCSV(const std::string& path);
+    bool loadLayer2CSV(const std::string& path); // load Tile Layer 2
     bool loadSpawnCSV(const std::string& path);
     bool loadColCSV(const std::string& path); // collision csv loader
     int getTile(int x, int y) const;
@@ -63,6 +65,8 @@ public:
 
     // Draw map to the screen, using camera X offset
     void draw(SDL_Renderer* renderer, int camX, int camY);
+    // Draw foreground tile layer (Tile Layer 2) on top of entities
+    void drawForeground(SDL_Renderer* renderer, int camX, int camY);
 
     // Check if a tile is solid (-1 is passable; object tiles are passable)
     bool isSolid(int tx, int ty);

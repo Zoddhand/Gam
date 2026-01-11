@@ -19,6 +19,8 @@ public:
         bool alive = true;
         float health = 100.0f;
         float maxHealth = 100.0f;
+        float magic = 100.0f;      // current magic/mana
+        float maxMagic = 100.0f;   // maximum magic/mana
         int damage = 10;
         bool canMove = true;
         int ignoreOneWayTimer = 0;
@@ -40,6 +42,7 @@ public:
     AnimationManager* animPrev;  // saved animation to restore after flash
     AnimationManager* animBlock; // blocking animation (added)
     AnimationManager* animShoot; // shooting animation (for ranged enemies)
+    AnimationManager* animPlayerCharge; // players charge animation
 
 public:
     GameObject(SDL_Renderer* renderer, const std::string& spritePath, int tw, int th);
@@ -75,4 +78,8 @@ protected:
 
     // Blocking state (for enemies that can block)
     bool blocking = false;
+
+    // When true, GameObject::update will not override `currentAnim` during its animation
+    // selection step. Derived classes can set this to preserve a custom animation.
+    bool preventAnimOverride = false;
 };

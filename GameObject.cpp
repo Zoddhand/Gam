@@ -27,6 +27,7 @@ GameObject::GameObject(SDL_Renderer* renderer, const std::string& spritePath, in
     animFlash = new AnimationManager(tex, 100, 100, 4, 500, 44, 42, obj.tileWidth, obj.tileHeight);
     animBlock = new AnimationManager(tex, 100, 100, 4, 400, 44, 42, obj.tileWidth, obj.tileHeight);
     animShoot = new AnimationManager(tex, 100, 100, 9, 400, 44, 42, obj.tileWidth, obj.tileHeight);
+    animPlayerCharge = new AnimationManager(tex, 100, 100, 12, 400, 44, 42, obj.tileWidth, obj.tileHeight);
     animPrev = animIdle;
     currentAnim = animIdle;
 
@@ -73,6 +74,8 @@ void GameObject::draw(SDL_Renderer* renderer, int camX, int camY) {
 
         SDL_FRect src = currentAnim->getSrcRect();
         SDL_FlipMode flip = obj.facing ? SDL_FLIP_NONE : SDL_FLIP_HORIZONTAL;
+
+        // no debug rect here
 
         // Render the sprite normally
         SDL_RenderTextureRotated(renderer, currentAnim->getTexture(), &src, &dst, 0.0, nullptr, flip);
@@ -232,13 +235,18 @@ void GameObject::update(Map& map)
     // --------------------
     // Animation selection
     // --------------------
-    if (flashing && flashOn) {
-        // swap to flashing animation (save previous)
-        if (currentAnim != animFlash) {
-            animPrev = currentAnim;
-            currentAnim = animFlash;
-        }
-    } else {
+    if (preventAnimOverride) {
+        // Caller requested to preserve currentAnim; just update flip/speed as-is and advance animation.
+        currentAnim->setFlip(!obj.facing);
+        currentAnim->update();
+    }
+    else if (flashing && flashOn) {
+         // swap to flashing animation (save previous)
+         if (currentAnim != animFlash) {
+             animPrev = currentAnim;
+             currentAnim = animFlash;
+         }
+     } else {
         // not currently showing flash animation
         if (animPrev && currentAnim == animFlash) {
             currentAnim = animPrev;
@@ -270,8 +278,11 @@ void GameObject::update(Map& map)
         }
     }
 
-    currentAnim->setFlip(!obj.facing);
-    currentAnim->update();
+    // After selecting currentAnim, advance its frame when not preserving via preventAnimOverride.
+    if (!preventAnimOverride && currentAnim) {
+        currentAnim->setFlip(!obj.facing);
+        currentAnim->update();
+    }
 
     // --------------------
     // Flashing update (swap animation pulses)
