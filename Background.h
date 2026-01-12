@@ -3,6 +3,7 @@
 #include <SDL3_IMAGE/SDL_image.h>
 #include <vector>
 #include <string>
+#include <array>
 
 // Simple reusable parallax background manager
 // It loads N layers named "1.png", "2.png", ... from a directory
@@ -19,7 +20,8 @@ public:
     void unload();
 
     // Render background using camera position (world coordinates)
-    void draw(SDL_Renderer* renderer, int camX, int camY, int screenW, int screenH);
+    // mapPixelHeight: total map height in world pixels (map.height * TILE_SIZE)
+    void draw(SDL_Renderer* renderer, int camX, int camY, int screenW, int screenH, int mapPixelHeight);
 
     // Update autonomous scrolling (dt seconds)
     void update(float dt);
@@ -27,6 +29,20 @@ public:
     // Associate specific level IDs with this background
     void addLevel(int levelID);
     bool matchesLevel(int levelID) const;
+
+    // Per-layer configuration (public so game/level code can tweak easily)
+    // Multipliers are applied to the internal base horizontal/vertical factors.
+    std::vector<float> layerHMultiplier; // multiply base horizontal parallax factor
+    std::vector<float> layerVMultiplier; // multiply base vertical parallax factor
+    std::vector<float> layerAutoScrollMultiplier; // multiplier applied to autonomous scroll speed
+
+    // Hardcoded defaults you can tweak here. Array length is the maximum expected layers
+    // Default auto-scroll speeds (pixels/sec). Positive = right, negative = left.
+    inline static const std::array<float, 7> DEFAULT_AUTO_SCROLL_SPEEDS = { 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, -1.4f, 0.0f };
+    // Default per-layer horizontal multipliers (multiplies computed hFactor)
+    inline static const std::array<float, 7> DEFAULT_LAYER_H_MULT = { 0.6f, 0.4f, 0.2f, 0.1f, 0.1f, 0.1f, 0.1f };
+    // Default per-layer vertical multipliers (multiplies computed vFactor)
+    inline static const std::array<float, 7> DEFAULT_LAYER_V_MULT = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
 
 private:
     std::vector<SDL_Texture*> m_textures;

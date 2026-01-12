@@ -20,7 +20,7 @@ class Arrow;
 #define UP    97
 #define RIGHT 98
 #define DOWN  99
-#define PORT  22
+#define PORT  45
 
 class Engine {
 public:
@@ -80,7 +80,7 @@ public:
 
     // ---------------- Level Transition ----------------
     bool transitioning = false;
-    int currentLevelID = 45;
+    int currentLevelID = 22;
     int pendingLevelID = -1;
     int entryDirection = -1;
     int lastStartPosX = 0;

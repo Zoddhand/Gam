@@ -140,6 +140,7 @@ Engine::Engine()
         sound->loadWav("monster", "Assets/Sound/monster.wav");
         sound->loadWav("orc_death", "Assets/Sound/orc_death.wav");
         sound->loadWav("arrow_empty", "Assets/Sound/arrow_empty.wav");
+        sound->loadWav("orc_laugh", "Assets/Sound/orc_laugh.wav");
         sound->playMusic("music", true, 32);
     }
 
@@ -169,6 +170,8 @@ Engine::Engine()
         sky->addLevel(25);
         sky->addLevel(26);
         sky->addLevel(27);
+        sky->addLevel(28);
+        sky->addLevel(29);
         backgrounds.push_back(sky);
     } else {
         SDL_Log("Background: skipping missing directory Assets/Backgrounds/Sky");
@@ -304,10 +307,10 @@ void Engine::handleEvents()
 }
 
 // --------------------------------------------------
-int t1 = 0;
-int t2 = 0;
 void Engine::update()
 {
+    if (currentLevelID == 39)
+		sound->playSfx("orc_laugh");
     // advance autonomous background scrolling (fixed step)
     const float bgDt = 1.0f / 60.0f;
     for (auto* b : backgrounds) if (b) b->update(bgDt);
@@ -344,7 +347,8 @@ void Engine::update()
         if (sound) sound->update();
         return;
     }
-    sound->stopMusic();
+	if (currentLevelID >= 39)
+        sound->stopMusic();
     if (!transitioning && player)
     {
         int tx = int(player->obj.x) / TILE_SIZE;
@@ -463,7 +467,7 @@ void Engine::update()
                     if (pCenter < aCenter)
                         player->obj.x = a->obj.x - player->obj.tileWidth;
                     else
-                        player->obj.x = a->obj.x + a->obj.tileWidth;
+                        player->obj.x = a->obj.x + player->obj.tileWidth;
                 }
 
                 player->obj.velx = 0.0f;
@@ -557,6 +561,7 @@ void Engine::update()
 
 void Engine::render()
 {
+    //SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     if (inMenu) {
         if (menu) menu->render(renderer);
         SDL_RenderPresent(renderer);
@@ -571,7 +576,7 @@ void Engine::render()
         // draw background for current level if any
         for (auto* b : backgrounds) {
             if (b && b->matchesLevel(currentLevelID)) {
-                b->draw(renderer, camera.x, camera.y, SCREEN_W, SCREEN_H);
+                b->draw(renderer, camera.x, camera.y, SCREEN_W, SCREEN_H, map.height * TILE_SIZE);
                 break;
             }
         }
@@ -601,13 +606,12 @@ void Engine::render()
     }
 
     //SDL_SetRenderDrawColor(renderer, 31, 14, 28, 255);
-    SDL_SetRenderDrawColor(renderer, 0,0,0, 255);
     SDL_RenderClear(renderer);
 
     // draw background for current level if any
     for (auto* b : backgrounds) {
         if (b && b->matchesLevel(currentLevelID)) {
-            b->draw(renderer, camera.x, camera.y, SCREEN_W, SCREEN_H);
+            b->draw(renderer, camera.x, camera.y, SCREEN_W, SCREEN_H, map.height * TILE_SIZE);
             break;
         }
     }
@@ -768,6 +772,7 @@ void Engine::loadLevel(int levelID)
     // ----------------------------------------
     // Spawn MAP OBJECTS (NOT PLAYER)
     // ----------------------------------------
+    int orcNum = -1;
     auto spawns = map.getObjectSpawns();
     for (const auto& s : spawns)
     {
@@ -782,6 +787,7 @@ void Engine::loadLevel(int levelID)
 
         case Map::SPAWN_ORC:
             orc.push_back(new Orc(renderer,"Assets/Sprites/orc.png",12, 16,px, py , 20));
+            orcNum++;
             break;
 
         case Map::SPAWN_SKELETON:
@@ -791,6 +797,8 @@ void Engine::loadLevel(int levelID)
                 12, 16,
                 px, py, 40, true
             ));
+            orcNum++;
+            orc[orcNum]->chaseSpeed = 0.7f;
             break;
 
         case Map::SPAWN_FALLINGTRAP:
@@ -805,6 +813,8 @@ void Engine::loadLevel(int levelID)
             archers.push_back(new Archer(renderer, "Assets/Sprites/archer.png", 12, 16, px, py, 10));
             break;
         case Map::SPAWN_ARROWTRAP_LEFT:
+            objects.push_back(new ArrowTrap(renderer, s.x, s.y, s.tileIndex));
+            break;
         case Map::SPAWN_ARROWTRAP_RIGHT:
             objects.push_back(new ArrowTrap(renderer, s.x, s.y, s.tileIndex));
             break;

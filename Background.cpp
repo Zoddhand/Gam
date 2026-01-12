@@ -40,27 +40,39 @@ bool Background::load(SDL_Renderer* renderer, const std::string& dir, int layers
     m_scrollSpeeds.resize(layers, 0.0f);
     m_autoScroll.resize(layers, 0);
 
-    // default factors: farther layers move less (0.0 = fixed, 1.0 = follows camera)
+    // initialize public multiplier vectors with defaults
+    layerHMultiplier.assign(layers, 1.0f);
+    layerVMultiplier.assign(layers, 1.0f);
+    layerAutoScrollMultiplier.assign(layers, 1.0f);
+
+    // default factors:
+    // - vertical factors: follow camera exactly so bottoms align with the map
+    // - horizontal factors: parallax (closer layers move more)
     for (int i = 0; i < layers; ++i) {
+        m_factors[i] = 1.0f; // vertical follow
         float t = float(i) / float(std::max(1, layers - 1));
-        m_factors[i] = 0.05f + t * (0.95f);
-        // horizontal factors similar but allow specific overrides below
-        m_hFactors[i] = 0.05f + t * (0.95f);
+        // horizontal: closer layers (small i) should move more -> invert t
+        float ht = 1.0f - t;
+        m_hFactors[i] = 0.05f + ht * 0.95f;
         m_scrollOffsets[i] = 0.0f;
         m_scrollSpeeds[i] = 0.0f;
         m_autoScroll[i] = 0;
     }
 
-    // Customize autonomous horizontal scroll for clouds (layers 2 and 3 -> indices 1 and 2)
-    if (m_layers > 1) {
-        m_autoScroll[1] = 1;
-        m_scrollSpeeds[1] = 8.0f;   // move right at 8 px/sec
-        m_hFactors[1] = 0.25f;      // still apply modest parallax to camera
+    // Autonomous horizontal scroll for clouds (layers 5 and 6 -> indices 4 and 5)
+    for (int i = 0; i < layers && i < (int)DEFAULT_AUTO_SCROLL_SPEEDS.size(); ++i) {
+        float def = DEFAULT_AUTO_SCROLL_SPEEDS[i];
+        if (def != 0.0f) {
+            m_autoScroll[i] = 1;
+            m_scrollSpeeds[i] = def;
+        }
     }
-    if (m_layers > 2) {
-        m_autoScroll[2] = 1;
-        m_scrollSpeeds[2] = -12.0f; // move left at 12 px/sec
-        m_hFactors[2] = 0.6f;
+
+    // Apply default multipliers arrays if they exist for this many layers
+    for (int i = 0; i < layers; ++i) {
+        if (i < (int)DEFAULT_LAYER_H_MULT.size()) layerHMultiplier[i] = DEFAULT_LAYER_H_MULT[i];
+        if (i < (int)DEFAULT_LAYER_V_MULT.size()) layerVMultiplier[i] = DEFAULT_LAYER_V_MULT[i];
+        // layerAutoScrollMultiplier left as 1.0 by default
     }
 
     char path[1024];
@@ -100,6 +112,9 @@ void Background::unload()
     m_autoScroll.clear();
     m_levels.clear();
     m_layers = 0;
+    layerHMultiplier.clear();
+    layerVMultiplier.clear();
+    layerAutoScrollMultiplier.clear();
 }
 
 void Background::update(float dt)
@@ -107,17 +122,20 @@ void Background::update(float dt)
     if (m_textures.empty()) return;
     for (int i = 0; i < m_layers; ++i) {
         if (i < (int)m_autoScroll.size() && m_autoScroll[i]) {
-            m_scrollOffsets[i] += m_scrollSpeeds[i] * dt;
+            float mult = (i < (int)layerAutoScrollMultiplier.size()) ? layerAutoScrollMultiplier[i] : 1.0f;
+            m_scrollOffsets[i] += m_scrollSpeeds[i] * mult * dt;
             // keep offset in range to avoid large floats (optional)
             // will wrap when drawing using fmod
         }
     }
 }
 
-void Background::draw(SDL_Renderer* renderer, int camX, int camY, int screenW, int screenH)
+void Background::draw(SDL_Renderer* renderer, int camX, int camY, int screenW, int screenH, int mapPixelHeight)
 {
     if (m_textures.empty()) return;
-    for (int i = 0; i < m_layers; ++i) {
+    // draw furthest layers first so closer layers render on top
+    for (int ii = m_layers - 1; ii >= 0; --ii) {
+        int i = ii;
         SDL_Texture* tex = m_textures[i];
         if (!tex) continue;
 
@@ -127,14 +145,21 @@ void Background::draw(SDL_Renderer* renderer, int camX, int camY, int screenW, i
         int th = (int)fh;
         if (tw <= 0 || th <= 0) continue;
 
-        // use horizontal-specific factor for X offset and vertical factor for Y
-        float hFactor = (i < (int)m_hFactors.size()) ? m_hFactors[i] : m_factors[i];
-        float vFactor = (i < (int)m_factors.size()) ? m_factors[i] : 0.0f;
+        // horizontal parallax factor (per-layer)
+        float baseH = (i < (int)m_hFactors.size()) ? m_hFactors[i] : 1.0f;
+        float hMult = (i < (int)layerHMultiplier.size()) ? layerHMultiplier[i] : 1.0f;
+        float hFactor = baseH * hMult;
 
-        float ox = camX * hFactor;
-        float oy = camY * vFactor;
+        // vertical follow factor (per-layer) - should be 1.0 for bottom alignment
+        float baseV = (i < (int)m_factors.size()) ? m_factors[i] : 1.0f;
+        float vMult = (i < (int)layerVMultiplier.size()) ? layerVMultiplier[i] : 1.0f;
+        float vFactor = baseV * vMult;
 
-        // add autonomous scroll offset
+        // compute offsets
+        float ox = float(camX) * hFactor;
+        float oy = float(camY) * vFactor;
+
+        // add autonomous scroll offset (horizontal)
         if (i < (int)m_scrollOffsets.size()) ox += m_scrollOffsets[i];
 
         float mod = fmod(ox, (float)tw);
@@ -142,11 +167,14 @@ void Background::draw(SDL_Renderer* renderer, int camX, int camY, int screenW, i
         if (startX > 0) startX -= tw;
 
         SDL_FRect dst;
-        dst.y = int(-oy);
+        // align bottom of texture with bottom of map (mapPixelHeight) then subtract camera Y* vFactor
+        float baseY = float(mapPixelHeight - th);
+        dst.y = baseY - oy;
         dst.h = (float)th;
         for (int x = startX; x < screenW; x += tw) {
             dst.x = (float)x;
             dst.w = (float)tw;
+            SDL_SetRenderDrawColor(renderer, 169, 228, 238, 255);
             SDL_RenderTexture(renderer, tex, nullptr, &dst);
         }
     }

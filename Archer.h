@@ -23,7 +23,7 @@ public:
 private:
     int shootCooldown = 0; // frames until next shot
     const int SHOOT_COOLDOWN_MAX = 120; // 60 ticks ~ 1s
-    float range = 240.0f; // pixels
+    float range = 180.0f; // pixels
     SDL_Renderer* rendererPtr = nullptr; // renderer for projectile creation
     bool shotFired = false; // whether arrow has been spawned in current attack animation
 };
