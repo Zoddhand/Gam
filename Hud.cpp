@@ -32,12 +32,26 @@ Hud::Hud(SDL_Renderer* renderer, const std::string& spritePath)
         // not fatal; we'll fall back to drawing the health sprite for magic
         texMagic = nullptr;
     }
+
+    // Try to load key icon
+    SDL_Surface* ksurf = IMG_Load("Assets/Sprites/key.png");
+    if (ksurf) {
+        texKey = SDL_CreateTextureFromSurface(renderer, ksurf);
+        SDL_DestroySurface(ksurf);
+        if (texKey) {
+            SDL_SetTextureScaleMode(texKey, SDL_SCALEMODE_NEAREST);
+            SDL_SetTextureBlendMode(texKey, SDL_BLENDMODE_BLEND);
+        }
+    } else {
+        texKey = nullptr;
+    }
 }
 
 Hud::~Hud()
 {
     if (tex) SDL_DestroyTexture(tex);
     if (texMagic) SDL_DestroyTexture(texMagic);
+    if (texKey) SDL_DestroyTexture(texKey);
 }
 
 void Hud::draw(SDL_Renderer* renderer, float health, float maxHealth)
@@ -64,7 +78,7 @@ void Hud::draw(SDL_Renderer* renderer, float health, float maxHealth)
     SDL_RenderTexture(renderer, tex, &src, &dst);
 }
 
-void Hud::draw(SDL_Renderer* renderer, float health, float maxHealth, float magic, float maxMagic)
+void Hud::draw(SDL_Renderer* renderer, float health, float maxHealth, float magic, float maxMagic, bool hasKey)
 {
     if (!tex) return;
 
@@ -91,4 +105,20 @@ void Hud::draw(SDL_Renderer* renderer, float health, float maxHealth, float magi
     SDL_Texture* use = texMagic ? texMagic : tex;
     SDL_SetTextureColorMod(use, 0xFF, 0xFF, 0xFF);
     SDL_RenderTexture(renderer, use, &msrc, &mdst);
+
+    // Draw key icon to the right of magic if player has key
+    if (hasKey) {
+        float kx = mdst.x + mdst.w + 4.0f; // small spacing
+        float ky = mdst.y;
+        float kw = hw;
+        float kh = hh;
+        SDL_FRect kdst{ kx, ky, kw, kh };
+        if (texKey) {
+            SDL_RenderTexture(renderer, texKey, nullptr, &kdst);
+        } else {
+            // fallback: draw a simple yellow rectangle as key placeholder
+            SDL_SetRenderDrawColor(renderer, 255, 200, 0, 255);
+            SDL_RenderFillRect(renderer, &kdst);
+        }
+    }
 }

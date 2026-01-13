@@ -6,49 +6,54 @@
 #include "Arrow.h"
 #include "ArrowTrap.h"
 #include "Background.h"
+#include "Door.h"
+#include "Potion.h"
+// #include "Water.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
+#include "fallingplatform.h"
+// MapObject used for simple animated tiles like water
+#include "MapObject.h"
 
 
-
-
-int main(int argc, char* argv[])
-{
-    // Call once at program start
-    srand(static_cast<unsigned>(time(nullptr)));
-
-    Engine engine;
-
-    // Load starting room
-    engine.loadLevel(engine.currentLevelID);
-
-    const double targetFps = 60.0; // fallback target
-    const double targetMs = 1000.0 / targetFps;
-
-    Uint32 lastTick = SDL_GetTicks();
-    while (engine.running)
-    {
-        Uint32 frameStart = SDL_GetTicks();
-
-        engine.handleEvents();
-        engine.update();
-        engine.render();
-
-        Uint32 frameEnd = SDL_GetTicks();
-        double elapsed = double(frameEnd - frameStart);
-        if (elapsed < targetMs) {
-            SDL_Delay((Uint32)(targetMs - elapsed));
-        }
-    }
-
-    return 0;
+static uint64_t packDoorKey(int levelID, int tx, int ty) {
+    // pack three ints into 64-bit key: [levelID:16 bits][tx:24 bits][ty:24 bits]
+    uint64_t key = (uint64_t(levelID & 0xFFFF) << 48) | (uint64_t(tx & 0xFFFFFF) << 24) | uint64_t(ty & 0xFFFFFF);
+    return key;
 }
 
-// --------------------------------------------------
+// pack for keys uses same scheme
+static uint64_t packKeyKey(int levelID, int tx, int ty) {
+    return packDoorKey(levelID, tx, ty);
+}
+
+// Engine door persistence API
+void Engine::markDoorOpened(int levelID, int tx, int ty)
+{
+    uint64_t key = packDoorKey(levelID, tx, ty);
+    openedDoors.insert(key);
+}
+
+bool Engine::isDoorOpened(int levelID, int tx, int ty) const
+{
+    uint64_t key = packDoorKey(levelID, tx, ty);
+    return openedDoors.find(key) != openedDoors.end();
+}
+
+// Key persistence API
+void Engine::markKeyCollected(int levelID, int tx, int ty) {
+    uint64_t key = packKeyKey(levelID, tx, ty);
+    collectedKeys.insert(key);
+}
+
+bool Engine::isKeyCollected(int levelID, int tx, int ty) const {
+    uint64_t key = packKeyKey(levelID, tx, ty);
+    return collectedKeys.find(key) != collectedKeys.end();
+}
 
 Engine* gEngine = nullptr; // define global pointer
 
@@ -141,6 +146,10 @@ Engine::Engine()
         sound->loadWav("orc_death", "Assets/Sound/orc_death.wav");
         sound->loadWav("arrow_empty", "Assets/Sound/arrow_empty.wav");
         sound->loadWav("orc_laugh", "Assets/Sound/orc_laugh.wav");
+        sound->loadWav("fall_plat", "Assets/Sound/fall_plat.wav");
+        sound->loadWav("lock_open", "Assets/Sound/lock_open.wav");
+        sound->loadWav("lock_fail", "Assets/Sound/lock_fail.wav");
+        sound->loadWav("door_open", "Assets/Sound/door_open.wav");
         sound->playMusic("music", true, 32);
     }
 
@@ -163,15 +172,8 @@ Engine::Engine()
         Background* sky = new Background();
         sky->load(renderer, "Assets/Backgrounds/Sky", 7);
         // assign levels 22,23,24,25 to sky
-        sky->addLevel(17);
-        sky->addLevel(22);
-        sky->addLevel(23);
-        sky->addLevel(24);
-        sky->addLevel(25);
-        sky->addLevel(26);
-        sky->addLevel(27);
-        sky->addLevel(28);
-        sky->addLevel(29);
+        for(int i = 0; i < 40; i ++)
+            sky->addLevel(i);
         backgrounds.push_back(sky);
     } else {
         SDL_Log("Background: skipping missing directory Assets/Backgrounds/Sky");
@@ -300,10 +302,31 @@ void Engine::handleEvents()
 	if (keys[SDL_SCANCODE_ESCAPE]) {
         running = false;
     }
-    if (keys[SDL_SCANCODE_5])
+    if (keys[SDL_SCANCODE_1])
     {
-		loadLevel(PORT); // level ID 45 is a test room
+        loadLevel(22);
     }
+    if (keys[SDL_SCANCODE_8])
+    {
+		player->hasKey = true;
+    }
+    // Debug: next level (edge-detected so holding key doesn't skip multiple)
+    bool nextKey = keys[SDL_SCANCODE_5];
+    if (nextKey && !debugNextPressedLastFrame) {
+        int newLevel = currentLevelID + 1;
+        if (newLevel > 100) newLevel = 100;
+        if (newLevel != currentLevelID) loadLevel(newLevel);
+    }
+    debugNextPressedLastFrame = nextKey;
+
+    // Debug: previous level (edge-detected)
+    bool prevKey = keys[SDL_SCANCODE_4];
+    if (prevKey && !debugPrevPressedLastFrame) {
+        int newLevel = currentLevelID - 1;
+        if (newLevel < 1) newLevel = 1;
+        if (newLevel != currentLevelID) loadLevel(newLevel);
+    }
+    debugPrevPressedLastFrame = prevKey;
 }
 
 // --------------------------------------------------
@@ -463,13 +486,43 @@ void Engine::update()
                 }
                 else {
                     float pCenter = pr.x + pr.w * 0.5f;
-                    float aCenter = ar.x + ar.w * 0.5f;
+                    float aCenter = ar.x + ar.w + 0.5f;
                     if (pCenter < aCenter)
                         player->obj.x = a->obj.x - player->obj.tileWidth;
                     else
                         player->obj.x = a->obj.x + player->obj.tileWidth;
                 }
 
+                player->obj.velx = 0.0f;
+                prevPlayerX = player->obj.x;
+            }
+        }
+
+        // Prevent passing through closed doors: resolve collisions against Door MapObjects
+        for (auto* mo : objects) {
+            if (!mo) continue;
+            // only consider Door instances
+            Door* d = dynamic_cast<Door*>(mo);
+            if (!d || !d->active) continue;
+            if (d->isOpen()) continue; // open doors are passable
+
+            SDL_FRect pr = player->getRect();
+            SDL_FRect dr = d->getRect();
+            if (SDL_HasRectIntersectionFloat(&pr, &dr)) {
+                if (player->obj.x > prevPlayerX) {
+                    // moved right into door
+                    player->obj.x = dr.x - player->obj.tileWidth;
+                } else if (player->obj.x < prevPlayerX) {
+                    // moved left into door
+                    player->obj.x = dr.x + dr.w;
+                } else {
+                    float pCenter = pr.x + pr.w * 0.5f;
+                    float dCenter = dr.x + dr.w * 0.5f;
+                    if (pCenter < dCenter)
+                        player->obj.x = dr.x - player->obj.tileWidth;
+                    else
+                        player->obj.x = dr.x + dr.w;
+                }
                 player->obj.velx = 0.0f;
                 prevPlayerX = player->obj.x;
             }
@@ -489,6 +542,26 @@ void Engine::update()
     }
 
     // update projectiles
+    // Key pickup detection: if player touches a MapObject with spawn id 10, give key and deactivate it
+    if (player && player->obj.alive && !inGameOver) {
+        for (auto* mo : objects) {
+            if (!mo || !mo->active) continue;
+            if (mo->getTileIndex() == 10) {
+                SDL_FRect pr = player->getRect();
+                SDL_FRect mr = mo->getRect();
+                if (SDL_HasRectIntersectionFloat(&pr, &mr)) {
+                    player->hasKey = true;
+                    mo->active = false; // remove key from world
+                    // persist collection so key won't respawn later
+                    markKeyCollected(currentLevelID, mo->getTileX(), mo->getTileY());
+                    if (gSound) gSound->playSfx("arrow", 128, false);
+                    SDL_Log("Picked up key at (%d,%d) on level %d", mo->getTileX(), mo->getTileY(), currentLevelID);
+                    break; // only collect one key per frame
+                }
+            }
+        }
+    }
+
     for (auto it = projectiles.begin(); it != projectiles.end(); ) {
         Arrow* a = *it;
         a->update(map);
@@ -522,6 +595,35 @@ void Engine::update()
 
         if (!a->alive) { delete a; it = projectiles.erase(it); }
         else ++it;
+    }
+
+    // Update potions and handle pickups / removal
+    for (auto itp = potions.begin(); itp != potions.end(); ) {
+        Potion* p = *itp;
+        if (!p) { itp = potions.erase(itp); continue; }
+        p->update(map);
+        if (!p->obj.alive) { delete p; itp = potions.erase(itp); }
+        else ++itp;
+    }
+
+    // spawn potions from dead enemies (10% chance)
+    for (auto it = orc.begin(); it != orc.end(); ) {
+        Orc* e = *it;
+        if (!e || !e->obj.alive) {
+            // determine spawn chance
+            int r = rand() % 100;
+			if (r < 20) { // 20% chance to spawn potion
+                // choose potion type randomly with 7:3 health:mana ratio
+                int t = (rand() % 10) < 7 ? 0 : 1; // 0 = health (70%), 1 = mana (30%)
+                float spawnX = e ? e->obj.x : 0.0f;
+                float spawnY = (e ? e->obj.y : 0.0f) - 32.0f; // spawn 32px above ground
+                std::string path = (t == 0) ? "Assets/Sprites/healthPot.png" : "Assets/Sprites/manaPot.png";
+                Potion* p = new Potion(renderer, path, 16, 16, spawnX, spawnY, t == 0 ? Potion::Type::HEALTH : Potion::Type::MANA);
+                potions.push_back(p);
+            }
+            delete e;
+            it = orc.erase(it);
+        } else ++it;
     }
 
     // If in game over, check for selection
@@ -586,19 +688,25 @@ void Engine::render()
             o->draw(renderer, camera.x, camera.y);
         for (auto* f : fallT)
             f->draw(renderer, camera.x, camera.y);
-        for (auto* o : objects)
-            o->draw(renderer, camera.x, camera.y, map);
+        
+        // Draw only small objects (tile-sized) here. Taller objects (e.g. 16x32 water)
+        // are drawn later so they can appear in front of the player.
+        for (auto* mo : objects) {
+            if (!mo) continue;
+            if (mo->getHeight() <= Map::TILE_SIZE) mo->draw(renderer, camera.x, camera.y, map);
+        }
         for (auto* a : archers)
             a->draw(renderer, camera.x, camera.y);
         for (auto* p : projectiles)
             p->draw(renderer, camera.x, camera.y);
+
         if (player) player->draw(renderer, camera.x, camera.y);
 
         // draw foreground layer in front of player
         map.drawForeground(renderer, camera.x, camera.y);
 
         // Draw HUD including magic
-        if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth, player->obj.magic, player->obj.maxMagic);
+        if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth, player->obj.magic, player->obj.maxMagic, player->hasKey);
 
         gameOver->render(renderer);
         SDL_RenderPresent(renderer);
@@ -624,8 +732,10 @@ void Engine::render()
     for (auto* f : fallT)
         f->draw(renderer, camera.x, camera.y);
     
-    for (auto* o : objects)
-        o->draw(renderer, camera.x, camera.y, map);
+    for (auto* mo : objects) {
+        if (!mo) continue;
+        if (mo->getHeight() <= Map::TILE_SIZE) mo->draw(renderer, camera.x, camera.y, map);
+    }
 
     for (auto* a : archers)
         a->draw(renderer, camera.x, camera.y);
@@ -633,14 +743,23 @@ void Engine::render()
     for (auto* p : projectiles)
         p->draw(renderer, camera.x, camera.y);
 
+    for (auto* pot : potions)
+        if (pot) pot->draw(renderer, camera.x, camera.y);
+
     if (player) player->draw(renderer, camera.x, camera.y);
 
-    // draw foreground layer in front of player
+    // draw base map layer on top of sprites if necessary (preserve previous behavior)
     map.draw(renderer, camera.x, camera.y);
     
 
-    // Draw HUD last so it's on top
-    if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth, player->obj.magic, player->obj.maxMagic);
+    // Draw tall/overlay objects after map so they appear on top of player/tiles
+    for (auto* mo : objects) {
+        if (!mo) continue;
+        if (mo->getHeight() > Map::TILE_SIZE) mo->draw(renderer, camera.x, camera.y, map);
+    }
+
+    // Draw HUD last so it's on top (include key indicator)
+    if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth, player->obj.magic, player->obj.maxMagic, player->hasKey);
 
     if (transitioning)
     {
@@ -662,11 +781,14 @@ void Engine::loadLevel(int levelID)
     // Preserve player magic across loads
     float savedMagic = 100.0f;
     float savedMaxMagic = 100.0f;
+    // Preserve whether player had a key
+    bool savedHasKey = false;
     if (player) {
         savedHealth = player->obj.health;
         savedMaxHealth = player->obj.maxHealth;
         savedMagic = player->obj.magic;
         savedMaxMagic = player->obj.maxMagic;
+        savedHasKey = player->hasKey;
     }
 
     // ----------------------------------------
@@ -766,6 +888,8 @@ void Engine::loadLevel(int levelID)
     // Restore persisted magic if available
     player->obj.magic = savedMagic;
     player->obj.maxMagic = savedMaxMagic;
+    // Restore whether player had key
+    player->hasKey = savedHasKey;
 
     setPlayerFacingFromEntry(entryDirection);
 
@@ -774,12 +898,65 @@ void Engine::loadLevel(int levelID)
     // ----------------------------------------
     int orcNum = -1;
     auto spawns = map.getObjectSpawns();
+
+    // track which spawn tiles we've consumed when forming multi-tile platforms
+    std::vector<char> processed(map.width * map.height, 0);
     for (const auto& s : spawns)
     {
-        float px = float(s.x * Map::TILE_SIZE);
-        float py = float(s.y * Map::TILE_SIZE);
+        int sx = s.x;
+        int sy = s.y;
+        int idx = sy * map.width + sx;
+        if (processed[idx]) continue;
 
-        switch (s.tileIndex)
+        int t = s.tileIndex;
+
+        // Multi-tile platform starting with left edge (363)
+        if (t == 363) {
+            std::vector<int> tiles;
+            int curx = sx;
+            // collect left (363), zero or more middle (364), optional right (365)
+            for (;; ++curx) {
+                if (curx >= map.width) break;
+                int st = map.spawn[sy * map.width + curx];
+                if (curx == sx) {
+                    if (st != 363) break; // sanity
+                    tiles.push_back(st);
+                    processed[sy * map.width + curx] = 1;
+                    continue;
+                }
+                if (st == 364) {
+                    tiles.push_back(st);
+                    processed[sy * map.width + curx] = 1;
+                    continue;
+                }
+                if (st == 365) {
+                    tiles.push_back(st);
+                    processed[sy * map.width + curx] = 1;
+                    break;
+                }
+                // stop if encounter anything else
+                break;
+            }
+            // create platform from collected tiles
+            if (!tiles.empty()) {
+                objects.push_back(new FallingPlatform(sx, sy, tiles));
+            }
+            continue;
+        }
+
+        // Single-tile platform (366)
+        if (t == 366) {
+            processed[idx] = 1;
+            objects.push_back(new FallingPlatform(sx, sy, std::vector<int>{366}));
+            continue;
+        }
+
+        // Non-platform spawns
+        processed[idx] = 1;
+        float px = float(sx * Map::TILE_SIZE);
+        float py = float(sy * Map::TILE_SIZE);
+
+        switch (t)
         {
         case Map::SPAWN_PLAYER:
             // 🚫 Player already handled
@@ -789,13 +966,47 @@ void Engine::loadLevel(int levelID)
             orc.push_back(new Orc(renderer,"Assets/Sprites/orc.png",12, 16,px, py , 20));
             orcNum++;
             break;
+        case Map::SPAWN_WATER:
+        {
+            // Create a generic MapObject and load a water animation for it
+            MapObject* mo = new MapObject(sx, sy, s.tileIndex);
+            mo->setSize(16, 32);
+            if (!mo->loadAnimation(renderer, "Assets/Sprites/water.png", 16, 32, 4, 0, 0, 0, 16, 32, 12)) {
+                SDL_Log("Failed to load water animation");
+            }
+            // Sprite is taller (32) than tile (16). Move object up one tile so bottoms align.
+            mo->offsetPosition(0, -Map::TILE_SIZE);
+            objects.push_back(mo);
+        }
+        break;
+        case Map::SPAWN_WATERFALL_DAY:
+        {
+            // Create a generic MapObject and load a water animation for it
+            MapObject* mo = new MapObject(sx, sy, s.tileIndex);
+            mo->setSize(48, 64);
+            if (!mo->loadAnimation(renderer, "Assets/Sprites/waterfall_day.png", 48, 64, 5, 0, 0, 0, 48, 64, 12)) {
+                SDL_Log("Failed to load waterfall animation");
+            }
+            //mo->offsetPosition(-48-16, -64-16);
+            objects.push_back(mo);
+        }
+        break;
+
+        case Map::SPAWN_SLIME:
+            orc.push_back(new Orc(renderer,"Assets/Sprites/slime.png",12, 16,px, py , 10));
+            orcNum++;
+			orc[orcNum]->chaseSpeed = 0.4f;
+            orc[orcNum]->frames.walk = 6;
+            orc[orcNum]->frames.attack = 6;
+            orc[orcNum]->animFlash = new AnimationManager(orc[orcNum]->tex, 100, 100, 4 , 400, 44, 42, orc[orcNum]->obj.tileWidth, orc[orcNum]->obj.tileHeight);
+            break;
 
         case Map::SPAWN_SKELETON:
             orc.push_back(new Orc(
                 renderer,
                 "Assets/Sprites/Skeleton.png",
                 12, 16,
-                px, py, 40, true
+                px, py, 20, true
             ));
             orcNum++;
             orc[orcNum]->chaseSpeed = 0.7f;
@@ -818,6 +1029,34 @@ void Engine::loadLevel(int levelID)
         case Map::SPAWN_ARROWTRAP_RIGHT:
             objects.push_back(new ArrowTrap(renderer, s.x, s.y, s.tileIndex));
             break;
+        case Map::SPAWN_DOOR:
+        {
+            Door* d = new Door(sx, sy, s.tileIndex);
+            // load door animation: assume sprite "Assets/Sprites/door.png" with frames horizontally
+            if (!d->loadAnimation(renderer, "Assets/Sprites/door.png", 32, 48, 8, 0, 0, 0, 32, 48, 8)) {
+                SDL_Log("Failed to load door animation");
+            }
+            // set level for persistence and restore opened state if previously opened
+            d->setLevel(levelID);
+            if (isDoorOpened(levelID, sx, sy)) {
+                d->open(false); // open silently without SFX when restoring state
+            }
+            objects.push_back(d);
+        }
+        break;
+       case Map::SPAWN_KEY: // key spawn
+        {
+            // Only spawn key object if it hasn't already been collected
+            if (!isKeyCollected(levelID, sx, sy)) {
+                MapObject* mo = new MapObject(sx, sy, s.tileIndex);
+                // use default tile rendering (no animation) so tile from tileset is shown
+                objects.push_back(mo);
+            }
+        }
+        break;
+        default:
+            // unhandled spawn types are ignored
+            break;
         }
     }
 
@@ -835,19 +1074,19 @@ void Engine::setPlayerFacingFromEntry(int entryTile)
 {
     switch (entryTile)
     {
-    case 96: // came from LEFT
+    case LEFT: // came from LEFT
         player->obj.facing = false;
         break;
 
-    case 98: // came from RIGHT
+    case RIGHT: // came from RIGHT
         player->obj.facing = true;
         break;
 
-    case 97: // came from UP
+    case UP: // came from UP
         // optional – keep previous or face down
         break;
 
-    case 99: // came from DOWN
+    case DOWN: // came from DOWN
         // optional – keep previous or face up
         break;
 
@@ -863,4 +1102,36 @@ void Engine::triggerHitstop(int ticks)
     if (ticks < 1) ticks = 1;
     if (ticks > 60) ticks = 60;
     hitstopTicks = ticks;
+}
+
+int main(int argc, char* argv[])
+{
+    // Call once at program start
+    srand(static_cast<unsigned>(time(nullptr)));
+
+    Engine engine;
+
+    // Load starting room
+    engine.loadLevel(engine.currentLevelID);
+
+    const double targetFps = 60.0; // fallback target
+    const double targetMs = 1000.0 / targetFps;
+
+    Uint32 lastTick = SDL_GetTicks();
+    while (engine.running)
+    {
+        Uint32 frameStart = SDL_GetTicks();
+
+        engine.handleEvents();
+        engine.update();
+        engine.render();
+
+        Uint32 frameEnd = SDL_GetTicks();
+        double elapsed = double(frameEnd - frameStart);
+        if (elapsed < targetMs) {
+            SDL_Delay((Uint32)(targetMs - elapsed));
+        }
+    }
+
+    return 0;
 }

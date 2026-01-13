@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "026.tmx",
+    "activeFile": "030.tmx",
     "expandedProjectPaths": [
         "."
     ],
@@ -13,79 +13,95 @@
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 283.66666666666663,
-                "y": -378
+                "x": 128.16666666666666,
+                "y": -384.16666666666663
             }
         },
         "022.tmx": {
             "scale": 3,
-            "selectedLayer": 1,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": 127.99999999999997,
-                "y": -128.33333333333331
+                "x": 207.83333333333337,
+                "y": -117.66666666666666
             }
         },
         "023.tmx": {
-            "scale": 3,
-            "selectedLayer": 2,
+            "scale": 4,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": 156.33333333333331,
-                "y": -173.66666666666666
+                "x": 256.125,
+                "y": -128.125
             }
         },
         "024.tmx": {
-            "scale": 3,
+            "scale": 4,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": 156.33333333333331,
-                "y": -173.66666666666666
+                "x": -0.125,
+                "y": -256.125
             }
         },
         "025.tmx": {
             "scale": 3,
-            "selectedLayer": 0,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": 192.99999999999997,
-                "y": -126.33333333333334
+                "x": 128.16666666666666,
+                "y": -256.16666666666663
             }
         },
         "026.tmx": {
-            "scale": 3,
-            "selectedLayer": 2,
-            "viewCenter": {
-                "x": 67,
-                "y": -162.99999999999997
-            }
-        },
-        "027.tmx": {
             "scale": 2,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": 136,
-                "y": -260
+                "x": 128.25,
+                "y": -256.25
+            }
+        },
+        "027.tmx": {
+            "scale": 4,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 14.125,
+                "y": -276
+            }
+        },
+        "028.tmx": {
+            "scale": 2,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": -86.25,
+                "y": -255
             }
         },
         "029.tmx": {
-            "scale": 3,
+            "scale": 4,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 64.625,
+                "y": -191.25
+            }
+        },
+        "030.tmx": {
+            "scale": 2,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 306.1666666666667,
-                "y": -68
+                "x": 563.25,
+                "y": -297
             }
         },
         "039.tmx": {
             "scale": 1.5,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 356.33333333333337,
-                "y": 292
+                "x": 256.3333333333333,
+                "y": 256.3333333333333
             }
         },
         "043.tmx": {
             "scale": 3,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": -256,
+                "x": -256.16666666666663,
                 "y": 384.16666666666663
             }
         },
@@ -93,7 +109,7 @@
             "scale": 3,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": -128,
+                "x": -128.16666666666666,
                 "y": 512.1666666666666
             }
         },
@@ -101,47 +117,47 @@
             "scale": 3,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": -195.66666666666663,
-                "y": 140.66666666666663
+                "x": -128.16666666666666,
+                "y": 128.16666666666666
             }
         },
         "046.tmx": {
             "scale": 4,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 4.125,
-                "y": 144.25
+                "x": -0.125,
+                "y": 128.125
             }
         },
         "047.tmx": {
             "scale": 3,
             "selectedLayer": 0,
             "viewCenter": {
-                "x": -55.833333333333314,
-                "y": 106.66666666666664
+                "x": 77.66666666666666,
+                "y": 117.5
             }
         },
         "048.tmx": {
             "scale": 3,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 8.5,
-                "y": 113
+                "x": -0.16666666666666785,
+                "y": 128.16666666666666
             }
         },
         "049.tmx": {
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 60.166666666666686,
-                "y": -27
+                "x": -0.16666666666666785,
+                "y": -0.1666666666666572
             }
         },
         "050.tmx": {
             "scale": 4,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -128,
+                "x": -128.125,
                 "y": 128.125
             }
         },
@@ -149,20 +165,23 @@
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -128,
+                "x": -128.16666666666666,
                 "y": 512.1666666666666
             }
         },
+        ":/automap-tiles.tsx": {
+            "scaleInDock": 1
+        },
         "fullMap.tmx": {
-            "scale": 0.75,
-            "selectedLayer": 1,
+            "scale": 1.5,
+            "selectedLayer": 0,
             "viewCenter": {
-                "x": 768,
-                "y": 640.6666666666666
+                "x": 768.3333333333333,
+                "y": 127.66666666666664
             }
         },
         "tileset.tsx": {
-            "scaleInDock": 4,
+            "scaleInDock": 3,
             "scaleInEditor": 1
         },
         "untitled.tmx": {
@@ -194,15 +213,19 @@
         "048.tmx",
         "049.tmx",
         "024.tmx",
-        "022.tmx",
         "023.tmx",
         "025.tmx",
-        "024.tmx",
-        "026.tmx"
+        "026.tmx",
+        "027.tmx",
+        "039.tmx",
+        "030.tmx",
+        "022.tmx",
+        "017.tmx",
+        "028.tmx",
+        "029.tmx"
     ],
     "project": "untitled.tiled-project",
     "recentFiles": [
-        "039.tmx",
         "047.tmx",
         "050.tmx",
         "fullMap.tmx",
@@ -213,7 +236,8 @@
         "tileset.tsx",
         "046.tmx",
         "048.tmx",
-        "049.tmx"
+        "049.tmx",
+        "024.tmx"
     ],
     "tileset.lastUsedFormat": "tsx",
     "tileset.tileSize": {

@@ -11,16 +11,18 @@
 #include "Sound.h"
 #include "GameOver.h"
 #include "Background.h"
+#include <unordered_set>
 
 class Menu;
 class Archer;
 class Arrow;
+class Potion; // forward
 
-#define LEFT  96
-#define UP    97
-#define RIGHT 98
-#define DOWN  99
-#define PORT  45
+#define LEFT  26
+#define UP    27
+#define RIGHT 28
+#define DOWN  29
+#define PORT  25
 
 class Engine {
 public:
@@ -37,6 +39,14 @@ public:
 
     // Trigger a short global hitstop (freeze) measured in update ticks
     void triggerHitstop(int ticks = 6);
+
+    // Door persistence API
+    void markDoorOpened(int levelID, int tx, int ty);
+    bool isDoorOpened(int levelID, int tx, int ty) const;
+
+    // Key persistence API
+    void markKeyCollected(int levelID, int tx, int ty);
+    bool isKeyCollected(int levelID, int tx, int ty) const;
 
 private:
     void cleanupObjects();
@@ -59,6 +69,7 @@ public:
     std::vector<MapObject*> objects;
     std::vector<FallingTrap*> fallT;
     std::vector<Arrow*> projectiles;
+    std::vector<Potion*> potions; // managed potions
     Hud* hud = nullptr;
     Sound* sound = nullptr;
     Menu* menu = nullptr;
@@ -108,6 +119,17 @@ public:
 
     // Global hitstop timer (measured in update ticks). When >0, most gameplay updates are frozen.
     int hitstopTicks = 0;
+
+    // Debug key edge detection to avoid repeated triggers while key held
+    bool debugNextPressedLastFrame = false;
+    bool debugPrevPressedLastFrame = false;
+
+private:
+    // persistent set of opened doors across level loads
+    std::unordered_set<uint64_t> openedDoors;
+
+    // persistent set of collected keys across level loads
+    std::unordered_set<uint64_t> collectedKeys;
 };
 
 // Global pointer to the active Engine instance (used to trigger hitstop from gameplay code)

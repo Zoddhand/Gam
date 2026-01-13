@@ -141,7 +141,9 @@
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CollisionManager.h" />
     <ClInclude Include="Controller.h" />
+    <ClInclude Include="Door.h" />
     <ClInclude Include="Engine.h" />
+    <ClInclude Include="FallingPlatform.h" />
     <ClInclude Include="FallingTrap.h" />
     <ClInclude Include="GameObject.h" />
     <ClInclude Include="GameOver.h" />
@@ -151,6 +153,7 @@
     <ClInclude Include="Menu.h" />
     <ClInclude Include="Orc.h" />
     <ClInclude Include="Player.h" />
+    <ClInclude Include="Potion.h" />
     <ClInclude Include="Sound.h" />
     <ClInclude Include="TextureManager.h" />
     <ClInclude Include="Spikes.h" />
@@ -165,7 +168,9 @@
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CollisionManager.cpp" />
     <ClCompile Include="Controller.cpp" />
+    <ClCompile Include="Door.cpp" />
     <ClCompile Include="Engine.cpp" />
+    <ClCompile Include="FallingPlatform.cpp" />
     <ClCompile Include="FallingTrap.cpp" />
     <ClCompile Include="GameObject.cpp" />
     <ClCompile Include="GameOver.cpp" />
@@ -175,6 +180,7 @@
     <ClCompile Include="Menu.cpp" />
     <ClCompile Include="Orc.cpp" />
     <ClCompile Include="Player.cpp" />
+    <ClCompile Include="Potion.cpp" />
     <ClCompile Include="Sound.cpp" />
     <ClCompile Include="TextureManager.cpp" />
     <ClCompile Include="Spikes.cpp" />

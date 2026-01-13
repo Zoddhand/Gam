@@ -11,11 +11,12 @@ public:
     void draw(SDL_Renderer* renderer, float health, float maxHealth);
 
     // Draw health and magic. magic/maxMagic mapped to frames (0 = full, N-1 = empty)
-    void draw(SDL_Renderer* renderer, float health, float maxHealth, float magic, float maxMagic);
+    void draw(SDL_Renderer* renderer, float health, float maxHealth, float magic, float maxMagic, bool hasKey = false);
 
 private:
     SDL_Texture* tex = nullptr;
     SDL_Texture* texMagic = nullptr; // separate texture for magic sprite
+    SDL_Texture* texKey = nullptr; // key icon texture
     int frameW = 11;
     int frameH = 11;    
     int frameCount = 6;

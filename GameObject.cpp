@@ -12,7 +12,7 @@ GameObject::GameObject(SDL_Renderer* renderer, const std::string& spritePath, in
         SDL_Log("Failed to load sprite: %s", SDL_GetError());
         return;
     }
-    SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
+    tex = SDL_CreateTextureFromSurface(renderer, surf);
     SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
     // enable alpha blending for sprites
     SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
@@ -21,16 +21,68 @@ GameObject::GameObject(SDL_Renderer* renderer, const std::string& spritePath, in
     // Parameters: texture, frameW, frameH, frames, rowY, innerX, innerY, innerW, innerH
     obj.tileWidth = tw;     
     obj.tileHeight = th;
-    animIdle = new AnimationManager(tex, 100, 100, 6, 0, 44, 42, obj.tileWidth, obj.tileHeight);
-    animWalk = new AnimationManager(tex, 100, 100, 8, 100, 44, 42, obj.tileWidth, obj.tileHeight);
-    animAttack = new AnimationManager(tex, 100, 100, 9, 200, 44, 42, obj.tileWidth, obj.tileHeight);
-    animFlash = new AnimationManager(tex, 100, 100, 4, 500, 44, 42, obj.tileWidth, obj.tileHeight);
-    animBlock = new AnimationManager(tex, 100, 100, 4, 400, 44, 42, obj.tileWidth, obj.tileHeight);
-    animShoot = new AnimationManager(tex, 100, 100, 9, 400, 44, 42, obj.tileWidth, obj.tileHeight);
-    animPlayerCharge = new AnimationManager(tex, 100, 100, 12, 400, 44, 42, obj.tileWidth, obj.tileHeight);
+    animIdle = new AnimationManager(tex, 100, 100, frames.idle, 0, 44, 42, obj.tileWidth, obj.tileHeight);
+    animWalk = new AnimationManager(tex, 100, 100, frames.walk, 100, 44, 42, obj.tileWidth, obj.tileHeight);
+    animAttack = new AnimationManager(tex, 100, 100, frames.attack, 200, 44, 42, obj.tileWidth, obj.tileHeight);
+    animFlash = new AnimationManager(tex, 100, 100, frames.flash, 500, 44, 42, obj.tileWidth, obj.tileHeight);
+    animBlock = new AnimationManager(tex, 100, 100, frames.block, 400, 44, 42, obj.tileWidth, obj.tileHeight);
+    animShoot = new AnimationManager(tex, 100, 100, frames.shoot, 400, 44, 42, obj.tileWidth, obj.tileHeight);
+    animPlayerCharge = new AnimationManager(tex, 100, 100, frames.playerCharge, 400, 44, 42, obj.tileWidth, obj.tileHeight);
     animPrev = animIdle;
     currentAnim = animIdle;
 
+}
+
+// Called by Frames when a frame count value changes; update live AnimationManager instances accordingly
+void GameObject::onFrameChanged(int which, int newValue)
+{
+    using FI = Frames::FrameIndex;
+    switch ((FI)which) {
+    case FI::IDLE:
+        if (animIdle) {
+            animIdle->frameCount = newValue;
+            if (animIdle->currentFrame >= animIdle->frameCount) animIdle->currentFrame = 0;
+        }
+        break;
+    case FI::WALK:
+        if (animWalk) {
+            animWalk->frameCount = newValue;
+            if (animWalk->currentFrame >= animWalk->frameCount) animWalk->currentFrame = 0;
+        }
+        break;
+    case FI::ATTACK:
+        if (animAttack) {
+            animAttack->frameCount = newValue;
+            if (animAttack->currentFrame >= animAttack->frameCount) animAttack->currentFrame = 0;
+        }
+        break;
+    case FI::FLASH:
+        if (animFlash) {
+            animFlash->frameCount = newValue;
+            if (animFlash->currentFrame >= animFlash->frameCount) animFlash->currentFrame = 0;
+        }
+        break;
+    case FI::BLOCK:
+        if (animBlock) {
+            animBlock->frameCount = newValue;
+            if (animBlock->currentFrame >= animBlock->frameCount) animBlock->currentFrame = 0;
+        }
+        break;
+    case FI::SHOOT:
+        if (animShoot) {
+            animShoot->frameCount = newValue;
+            if (animShoot->currentFrame >= animShoot->frameCount) animShoot->currentFrame = 0;
+        }
+        break;
+    case FI::PLAYERCHARGE:
+        if (animPlayerCharge) {
+            animPlayerCharge->frameCount = newValue;
+            if (animPlayerCharge->currentFrame >= animPlayerCharge->frameCount) animPlayerCharge->currentFrame = 0;
+        }
+        break;
+    default:
+        break;
+    }
 }
 
 SDL_FRect GameObject::getRect() const {
@@ -48,8 +100,8 @@ SDL_FRect GameObject::getAttackRect() const {
     if (obj.attackTimer > (obj.attSpeed * 2))
         return { 0,0,0,0 };
 
-    float w = float(obj.tileWidth);
-    float h = 8.0f;
+    float w = 18.0f;
+    float h = 12.0f;
     float x = obj.facing ? obj.x + obj.tileWidth : obj.x - w;
     float y = obj.y + 4;
 
@@ -80,6 +132,16 @@ void GameObject::draw(SDL_Renderer* renderer, int camX, int camY) {
         // Render the sprite normally
         SDL_RenderTextureRotated(renderer, currentAnim->getTexture(), &src, &dst, 0.0, nullptr, flip);
 
+        SDL_FRect tmpattackRect = this->getAttackRect();
+        // Debug draw: convert attack rect (world coordinates) to screen coordinates by subtracting camera.
+        // Previously the world rect was passed directly to SDL_RenderRect which made it appear far away.
+        if (tmpattackRect.w > 0 && tmpattackRect.h > 0) {
+            SDL_FRect screenAttackRect = tmpattackRect;
+            screenAttackRect.x -= float(camX);
+            screenAttackRect.y -= float(camY);
+            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 128);
+            SDL_RenderRect(renderer, &screenAttackRect); // debug: draw screen rect
+        }
         // flashing overlay removed; animation swap will show flashing sprite when active
     }
 

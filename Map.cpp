@@ -86,7 +86,7 @@ void Map::draw(SDL_Renderer* renderer, int camX, int camY)
         for (int x = 0; x < width; ++x)
         {
             int tileIndex = tiles[y * width + x];
-            if (tileIndex < 0)
+            if (tileIndex < 0 || tileIndex == 3)
                 continue; // walkable / empty
 
             int tx = tileIndex % tileCols;
@@ -128,12 +128,19 @@ std::vector<Map::ObjectSpawn> Map::getObjectSpawns() const
             // Include any spawn types you want the engine to instantiate
             if (t == SPAWN_PLAYER ||
                 t == SPAWN_ORC ||
+                t == SPAWN_WATER ||
+                t == SPAWN_WATERFALL_DAY ||
                 t == SPAWN_FALLINGTRAP ||
                 t == SPAWN_SPIKES ||    
                 t == SPAWN_SKELETON ||
+                t == SPAWN_SLIME ||
                 t == SPAWN_ARCHER ||
+                t == SPAWN_KEY ||
                 t == SPAWN_ARROWTRAP_LEFT ||
-                t == SPAWN_ARROWTRAP_RIGHT)
+                t == SPAWN_ARROWTRAP_RIGHT ||
+                t == SPAWN_DOOR ||
+                // falling platform spawn tiles (use numeric ids in spawn CSV)
+                (t >= 363 && t <= 366))
             {
                 out.push_back({
                     x,   // tile X
@@ -153,6 +160,12 @@ bool Map::isSolid(int tx, int ty)
     if (tx < 0 || ty < 0 || tx >= width || ty >= height)
         return true;
 
+    // Treat falling-platform spawn tiles as solid so players can stand on them
+    if (!spawn.empty()) {
+        int s = spawn[ty * width + tx];
+        if (s >= 363 && s <= 366) return true;
+    }
+
     // Use getCollision for consistent semantics
     int c = getCollision(tx, ty);
     return c != -1;
@@ -162,6 +175,12 @@ int Map::getCollision(int tx, int ty) const
 {
     if (tx < 0 || ty < 0 || tx >= width || ty >= height)
         return -1;
+
+    // If a spawn layer exists, treat falling-platform spawn tiles as solid regardless of collision layer
+    if (!spawn.empty()) {
+        int s = spawn[ty * width + tx];
+        if (s >= 363 && s <= 366) return 1; // non -1 = solid
+    }
 
     // If a collision layer exists, return that raw value.
     if (!collision.empty()) {
@@ -374,7 +393,7 @@ void Map::drawForeground(SDL_Renderer* renderer, int camX, int camY)
         for (int x = 0; x < width; ++x)
         {
             int tileIndex = tiles2[y * width + x];
-            if (tileIndex < 0) continue;
+            if (tileIndex < 0 || tileIndex == 3) continue;
 
             int tx = tileIndex % tileCols;
             int ty = tileIndex / tileCols;

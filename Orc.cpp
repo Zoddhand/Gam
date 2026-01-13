@@ -48,7 +48,10 @@ void Orc::aiUpdate(Player& player, Map& map)
     float dist = player.obj.x - obj.x;
     bool sameLevel = std::abs(player.obj.y - obj.y) < obj.tileHeight;
     bool playerInFront = (dist > 0 && obj.facing) || (dist < 0 && !obj.facing);
-    bool playerClose = std::abs(dist) <= 24;
+
+    // Use the orc's attack hitbox width as the attack-start distance
+    float attackRange = float(obj.tileWidth) * 2.0f;
+    bool playerClose = std::abs(dist) <= attackRange;
 
     // Determine whether the orc can "see" the player for aggression purposes
     bool playerNearbyForSight = sameLevel && std::abs(dist) < 80 && playerInFront;

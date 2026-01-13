@@ -24,12 +24,26 @@ void Camera::update(float playerX, float playerY, int mapWidth, int screenWidth,
     int visibleW_world = int(std::round((float)screenWidth / scale));
     int visibleH_world = int(std::round((float)screenHeight / scale));
 
-    int maxX = mapWidth * tileSize - visibleW_world;
+    // Original maximum allowed X when clamping to map bounds
+    int defaultMaxX = mapWidth * tileSize - visibleW_world;
+    if (defaultMaxX < 0) defaultMaxX = 0;
+
+    // We want to prevent the camera from showing the first and last tile columns
+    // when the map is wide enough to allow it. If the map is too small (<=2 tiles)
+    // then fall back to the normal clamping behavior.
+    int minX = 0;
+    int maxX = defaultMaxX;
+    if (mapWidth > 2) {
+        minX = tileSize; // don't allow camera to show column 0
+        maxX = mapWidth * tileSize - visibleW_world - tileSize; // don't allow camera to show last column
+        if (maxX < 0) maxX = 0;
+    }
+
+    // Vertical clamping remains unchanged
     int maxY = mapHeight * tileSize - visibleH_world;
-    if (maxX < 0) maxX = 0;
     if (maxY < 0) maxY = 0;
 
-    if (baseX < 0) baseX = 0;
+    if (baseX < minX) baseX = minX;
     if (baseX > maxX) baseX = maxX;
     if (baseY < 0) baseY = 0;
     if (baseY > maxY) baseY = maxY;
@@ -52,7 +66,7 @@ void Camera::update(float playerX, float playerY, int mapWidth, int screenWidth,
     y = baseY + offsetY;
 
     // clamp final
-    if (x < 0) x = 0;
+    if (x < minX) x = minX;
     if (x > maxX) x = maxX;
     if (y < 0) y = 0;
     if (y > maxY) y = maxY;

@@ -28,6 +28,38 @@ public:
         bool avoidEdges = false;
     }; object obj;
 
+    // notify hook used by Frames to update live AnimationManager instances
+    void onFrameChanged(int which, int newValue);
+    SDL_Texture* tex;
+    struct Frames
+    {
+        enum FrameIndex { IDLE = 0, WALK = 1, ATTACK = 2, FLASH = 3, BLOCK = 4, SHOOT = 5, PLAYERCHARGE = 6 };
+
+        struct FrameValue {
+            FrameValue() : owner(nullptr), index(IDLE), v(0) {}
+            FrameValue(GameObject* o, FrameIndex i, int init) : owner(o), index(i), v(init) {}
+            operator int() const { return v; }
+            FrameValue& operator=(int nv) { if (v != nv) { v = nv; if (owner) owner->onFrameChanged((int)index, v); } return *this; }
+            GameObject* owner;
+            FrameIndex index;
+            int v;
+        };
+
+        Frames(GameObject* owner)
+            : idle(owner, IDLE, 6), walk(owner, WALK, 8), attack(owner, ATTACK, 9), flash(owner, FLASH, 4),
+              block(owner, BLOCK, 4), shoot(owner, SHOOT, 9), playerCharge(owner, PLAYERCHARGE, 12)
+        {}
+
+        // implicit conversion to ints supported via FrameValue::operator int()
+        FrameValue idle;
+        FrameValue walk;
+        FrameValue attack;
+        FrameValue flash;
+        FrameValue block;
+        FrameValue shoot;
+        FrameValue playerCharge;
+    } frames{this};
+
     struct Audio {
         const char* hitSfx = "hit";
         const char* walkSfx = "walk";
