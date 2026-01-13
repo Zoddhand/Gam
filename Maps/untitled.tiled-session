@@ -21,8 +21,8 @@
             "scale": 3,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 207.83333333333337,
-                "y": -117.66666666666666
+                "x": 128.16666666666666,
+                "y": -128.16666666666666
             }
         },
         "023.tmx": {
@@ -45,48 +45,48 @@
             "scale": 3,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 128.16666666666666,
-                "y": -256.16666666666663
+                "x": 128,
+                "y": -256.3333333333333
             }
         },
         "026.tmx": {
             "scale": 2,
-            "selectedLayer": 3,
+            "selectedLayer": 1,
             "viewCenter": {
-                "x": 128.25,
-                "y": -256.25
+                "x": 128,
+                "y": -348
             }
         },
         "027.tmx": {
-            "scale": 4,
-            "selectedLayer": 1,
+            "scale": 3,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": 14.125,
-                "y": -276
+                "x": 195.3333333333333,
+                "y": -270.3333333333333
             }
         },
         "028.tmx": {
             "scale": 2,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": -86.25,
-                "y": -255
+                "x": 128.25,
+                "y": -256.25
             }
         },
         "029.tmx": {
             "scale": 4,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": 64.625,
-                "y": -191.25
+                "x": 128.125,
+                "y": -256.125
             }
         },
         "030.tmx": {
-            "scale": 2,
+            "scale": 1.5,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 563.25,
-                "y": -297
+                "x": 1130.6666666666665,
+                "y": -376
             }
         },
         "039.tmx": {

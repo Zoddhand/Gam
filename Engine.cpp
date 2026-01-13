@@ -64,7 +64,7 @@ Engine::Engine()
 
     // Initialize video + audio subsystems
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMEPAD);
-
+    SDL_SetRenderVSync(renderer, 1);  // enable
     window = SDL_CreateWindow("Platformer", SCREEN_W * 2, SCREEN_H * 2, SDL_WINDOW_BORDERLESS);
     /* Move to 3rd monitor */
     int displayCount = 0;
@@ -634,7 +634,7 @@ void Engine::update()
             if (sel == 0) {
                 // Restart: reload the starting level and return to menu
                 inGameOver = false;
-                currentLevelID = 45;
+                currentLevelID = 22;
                 loadLevel(currentLevelID);
                 if (player) player->obj.health = player->obj.maxHealth;
                 if (player) player->obj.magic = player->obj.maxMagic;

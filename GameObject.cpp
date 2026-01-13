@@ -139,8 +139,10 @@ void GameObject::draw(SDL_Renderer* renderer, int camX, int camY) {
             SDL_FRect screenAttackRect = tmpattackRect;
             screenAttackRect.x -= float(camX);
             screenAttackRect.y -= float(camY);
-            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 128);
-            SDL_RenderRect(renderer, &screenAttackRect); // debug: draw screen rect
+            if (showRectDebug) {
+                SDL_SetRenderDrawColor(renderer, 0, 255, 0, 128);
+				SDL_RenderRect(renderer, &screenAttackRect); // debug: draw screen rect
+            }
         }
         // flashing overlay removed; animation swap will show flashing sprite when active
     }

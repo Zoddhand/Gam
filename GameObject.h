@@ -114,4 +114,5 @@ protected:
     // When true, GameObject::update will not override `currentAnim` during its animation
     // selection step. Derived classes can set this to preserve a custom animation.
     bool preventAnimOverride = false;
+	bool showRectDebug = false;
 };
