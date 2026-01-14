@@ -43,9 +43,14 @@ public:
     static constexpr int SPAWN_ARROWTRAP_RIGHT = 22; // arrow trap that shoots right
     static constexpr int SPAWN_SLIME = 23; // arrow trap that shoots right
     static constexpr int SPAWN_WATER = 11; // water spawn (tile id 11)
+    static constexpr int SPAWN_WATERFALL = 693; // waterfall spawn (tile id 693)
+    static constexpr int SPAWN_WATERFALL_LONG = 683; // long waterfall spawn (tile id 683)
+    static constexpr int SPAWN_DUNGEON_WATER = 623; // dungeon water spawn (tile id 623)
     static constexpr int SPAWN_WATERFALL_DAY = 360; // water spawn (tile id 11)
     static constexpr int SPAWN_DOOR = 423; // door spawn (custom)
     static constexpr int SPAWN_KEY = 10; // door spawn (custom)
+    static constexpr int SPAWN_CHECKPOINT = 440; // checkpoint spawn (custom)
+    static constexpr int SPAWN_CRATE = 24; // crate spawn
 
     // Backwards-compatible aliases used elsewhere in the codebase
     static constexpr int TRAP_TILE = SPAWN_SPIKES;

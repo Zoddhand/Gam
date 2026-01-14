@@ -183,7 +183,7 @@ void GameObject::update(Map& map)
             if (!blockedByEdge && !map.spawn.empty()) {
                 if (footY >= 0 && footY < map.height) {
                     int sp = map.spawn[footY * map.width + frontX];
-                    if (sp == 96 || sp == 97 || sp == 98 || sp == 99)
+                    if (sp == LEFT || sp == RIGHT || sp == UP || sp == DOWN || sp == WRAP)
                         blockedByEdge = true;
                 }
             }

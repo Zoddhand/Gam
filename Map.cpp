@@ -129,6 +129,9 @@ std::vector<Map::ObjectSpawn> Map::getObjectSpawns() const
             if (t == SPAWN_PLAYER ||
                 t == SPAWN_ORC ||
                 t == SPAWN_WATER ||
+                t == SPAWN_WATERFALL ||
+                t == SPAWN_WATERFALL_LONG ||
+                t == SPAWN_DUNGEON_WATER ||
                 t == SPAWN_WATERFALL_DAY ||
                 t == SPAWN_FALLINGTRAP ||
                 t == SPAWN_SPIKES ||    
@@ -136,9 +139,11 @@ std::vector<Map::ObjectSpawn> Map::getObjectSpawns() const
                 t == SPAWN_SLIME ||
                 t == SPAWN_ARCHER ||
                 t == SPAWN_KEY ||
+                t == SPAWN_CRATE ||
                 t == SPAWN_ARROWTRAP_LEFT ||
                 t == SPAWN_ARROWTRAP_RIGHT ||
                 t == SPAWN_DOOR ||
+                t == SPAWN_CHECKPOINT ||
                 // falling platform spawn tiles (use numeric ids in spawn CSV)
                 (t >= 363 && t <= 366))
             {

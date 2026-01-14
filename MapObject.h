@@ -34,6 +34,9 @@ public:
     SDL_FRect getRect();
     bool active = true;
 
+    // If true, this object should be drawn behind the player even if it's taller than a tile.
+    bool drawBehind = false;
+
     int getTileX() const { return tx; }
     int getTileY() const { return ty; }
     int getTileIndex() const { return tileIndex; }

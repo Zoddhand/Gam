@@ -62,6 +62,11 @@ public:
     // Misc
     int baseDamage = 35; // player's normal attack damage
 
+    // Adjustable attack hitbox width (in pixels). Can be tuned per-player.
+    float attackHitboxWidth = 15.9f;
+
     // Whether player has a key to open doors (default false). Set this later when keys are collected.
     bool hasKey = false;
+    // Override to provide player-specific attack rect width
+    SDL_FRect getAttackRect() const override;
 };

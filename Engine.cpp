@@ -8,6 +8,7 @@
 #include "Background.h"
 #include "Door.h"
 #include "Potion.h"
+#include "Checkpoint.h"
 // #include "Water.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
@@ -18,6 +19,7 @@
 #include "fallingplatform.h"
 // MapObject used for simple animated tiles like water
 #include "MapObject.h"
+#include "Crate.h"
 
 
 static uint64_t packDoorKey(int levelID, int tx, int ty) {
@@ -242,11 +244,33 @@ int Engine::getNextLevelID(int dir)
     if (dir == UP)    r--;
     if (dir == DOWN)  r++;
 
+    if (dir == WRAP) {
+        // ...0 <-> ...1 warp
+        int last = currentLevelID % 10;
+
+        if (last == 0) {
+            // 10->11, 20->21, 30->31, ...
+            // (end of row: col 9 -> next row col 0)
+            r += 1;
+            c = 0;
+        }
+        else if (last == 1) {
+            // 11->10, 21->20, 31->30, ...
+            // (start of row: col 0 -> prev row col 9)
+            r -= 1;
+            c = GRID_COLS - 1;
+        }
+        else {
+            return -1; // WRAP only defined for ...0 and ...1
+        }
+    }
+
     if (r < 0 || r >= GRID_ROWS || c < 0 || c >= GRID_COLS)
         return -1;
 
     return levelGrid[r][c];
 }
+
 
 // --------------------------------------------------
 
@@ -261,6 +285,15 @@ void Engine::handleEvents()
     // update controller polling every frame
     controller.update();
     auto cs = controller.getState();
+
+    // If we are currently ignoring held Up input (to avoid immediate re-wrapping),
+    // clear the flag once Up is released on both keyboard and controller.
+    if (inMenu == false && gEngine && gEngine->ignoreWrapUp) {
+        bool upHeld = false;
+        if (keys && (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP])) upHeld = true;
+        if (cs.connected && cs.up) upHeld = true;
+        if (!upHeld) gEngine->ignoreWrapUp = false;
+    }
 
     // If in game over, route input only to gameOver UI
     if (inGameOver && gameOver) {
@@ -316,6 +349,7 @@ void Engine::handleEvents()
         int newLevel = currentLevelID + 1;
         if (newLevel > 100) newLevel = 100;
         if (newLevel != currentLevelID) loadLevel(newLevel);
+		std::cout << "Debug: loading next level " << newLevel << "\n";
     }
     debugNextPressedLastFrame = nextKey;
 
@@ -325,6 +359,7 @@ void Engine::handleEvents()
         int newLevel = currentLevelID - 1;
         if (newLevel < 1) newLevel = 1;
         if (newLevel != currentLevelID) loadLevel(newLevel);
+        std::cout << "Debug: loading previous level " << newLevel << "\n";
     }
     debugPrevPressedLastFrame = prevKey;
 }
@@ -334,6 +369,7 @@ void Engine::update()
 {
     if (currentLevelID == 39)
 		sound->playSfx("orc_laugh");
+    playerLastFacing = player->obj.facing;
     // advance autonomous background scrolling (fixed step)
     const float bgDt = 1.0f / 60.0f;
     for (auto* b : backgrounds) if (b) b->update(bgDt);
@@ -380,7 +416,56 @@ void Engine::update()
         if (tx >= 0 && ty >= 0 && tx < map.width && ty < map.height)
         {
             int t = map.spawn[ty * map.width + tx];
-            if (t == LEFT || t == RIGHT || t == UP || t == DOWN)
+            // Handle vertical wrap-down (go +10)
+            if (t == WRAPD) {
+                // Require pressing UP to trigger vertical wrap (player must press up while standing on tile)
+                const bool* keys = SDL_GetKeyboardState(nullptr);
+                auto cs = controller.getState();
+                bool upPressed = false;
+                if (keys && (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP])) upPressed = true;
+                if (cs.connected && cs.up) upPressed = true;
+                if (upPressed && !ignoreWrapUp) {
+                    int newLevel = currentLevelID + 10;
+                    if (newLevel > 100) newLevel = 100;
+                    if (newLevel != currentLevelID) {
+                        pendingLevelID = newLevel;
+                        // Mark that we entered via a downward wrap so the destination
+                        // level will search for the opposite WRAPU tile when placing
+                        // the player.
+                        entryDirection = WRAPD;
+                        transitioning = true;
+                        // Ignore held Up until it is released to avoid immediately wrapping back
+                        ignoreWrapUp = true;
+                        transitionTimer = TRANSITION_DURATION;
+                        if (player) player->obj.canMove = false;
+                    }
+                }
+            }
+            // Handle vertical wrap-up (go -10) — requires pressing up
+            else if (t == WRAPU) {
+                const bool* keys = SDL_GetKeyboardState(nullptr);
+                auto cs = controller.getState();
+                bool upPressed = false;
+                if (keys && (keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_UP])) upPressed = true;
+                if (cs.connected && cs.up) upPressed = true;
+                if (upPressed && !ignoreWrapUp) {
+                    int newLevel = currentLevelID - 10;
+                    if (newLevel < 1) newLevel = 1;
+                    if (newLevel != currentLevelID) {
+                        pendingLevelID = newLevel;
+                        // Mark that we entered via an upward wrap so the destination
+                        // level will search for the opposite WRAPD tile when placing
+                        // the player.
+                        entryDirection = WRAPU;
+                        transitioning = true;
+                        // Ignore held Up until it is released to avoid immediately wrapping back
+                        ignoreWrapUp = true;
+                        transitionTimer = TRANSITION_DURATION;
+                        if (player) player->obj.canMove = false;
+                    }
+                }
+            }
+            else if (t == LEFT || t == RIGHT || t == UP || t == DOWN || t == WRAP)
             {
                 pendingLevelID = getNextLevelID(t);
                 if (pendingLevelID != -1)
@@ -392,6 +477,7 @@ void Engine::update()
                     if (player) player->obj.canMove = false;
                 }
             }
+
             if (!inGameOver) {
                 // Update all game objects
                 for (auto* r : orc)
@@ -434,8 +520,9 @@ void Engine::update()
 
     if (!player) return;
     if (player->obj.alive && !inGameOver) {
-        // Preserve previous X to determine movement direction for collision resolution
+        // Preserve previous X/Y to determine movement direction for collision resolution
         float prevPlayerX = player->obj.x;
+        float prevPlayerY = player->obj.y;
         player->update(map);
 
         // Prevent player from walking through orcs: if player's hitbox intersects an orc,
@@ -523,6 +610,63 @@ void Engine::update()
                     else
                         player->obj.x = dr.x + dr.w;
                 }
+                player->obj.velx = 0.0f;
+                prevPlayerX = player->obj.x;
+            }
+        }
+
+        // Prevent passing through crates and allow pushing them by walking into them
+        for (auto* mo : objects) {
+            if (!mo || !mo->active) continue;
+            Crate* c = dynamic_cast<Crate*>(mo);
+            if (!c) continue;
+
+            SDL_FRect pr = player->getRect();
+            SDL_FRect cr = c->getRect();
+            if (!SDL_HasRectIntersectionFloat(&pr, &cr)) continue;
+
+            // compute overlap extents
+            float overlapX = std::min(pr.x + pr.w, cr.x + cr.w) - std::max(pr.x, cr.x);
+            float overlapY = std::min(pr.y + pr.h, cr.y + cr.h) - std::max(pr.y, cr.y);
+
+            // Decide whether collision is primarily vertical (landing on crate) or horizontal (walking into crate)
+            bool verticalCollision = false;
+            float prevBottom = prevPlayerY + player->obj.tileHeight;
+            float crateTop = cr.y;
+            // If the player's previous bottom was at or above the crate top (within tolerance), prefer vertical landing
+            if (prevBottom <= crateTop + 6.0f) verticalCollision = true;
+            // Also, if vertical overlap is smaller than horizontal overlap, treat as vertical
+            if (overlapY <= overlapX) verticalCollision = true;
+
+            if (verticalCollision) {
+                // Snap player to top of crate so they can stand even if positions are not tile-aligned
+                player->obj.y = crateTop - player->obj.tileHeight;
+                player->obj.vely = 0.0f;
+                player->obj.onGround = true;
+                // Gently carry player horizontally by crate velocity
+                player->obj.x += c->velx;
+                prevPlayerX = player->obj.x;
+            }
+            else {
+                // horizontal resolution (player walked into crate)
+                if (player->obj.x > prevPlayerX) {
+                    // moved right into crate
+                    player->obj.x = cr.x - player->obj.tileWidth;
+                } else if (player->obj.x < prevPlayerX) {
+                    // moved left into crate
+                    player->obj.x = cr.x + cr.w;
+                } else {
+                    // no horizontal movement this frame — nudge based on centers
+                    float pCenter = pr.x + pr.w * 0.5f;
+                    float cCenter = cr.x + cr.w * 0.5f;
+                    if (pCenter < cCenter) {
+                        player->obj.x = cr.x - player->obj.tileWidth;
+                    } else {
+                        player->obj.x = cr.x + cr.w;
+                    }
+                }
+
+                // stop player's horizontal movement; do NOT modify crate velocity here — only attacks move crates
                 player->obj.velx = 0.0f;
                 prevPlayerX = player->obj.x;
             }
@@ -634,7 +778,14 @@ void Engine::update()
             if (sel == 0) {
                 // Restart: reload the starting level and return to menu
                 inGameOver = false;
-                currentLevelID = 22;
+                // If a checkpoint exists, enable respawnFromCheckpoint and restart at that level; otherwise default to 22
+                if (lastCheckpointLevel >= 1) {
+                    respawnFromCheckpoint = true;
+                    currentLevelID = lastCheckpointLevel;
+                } else {
+                    respawnFromCheckpoint = false;
+                    currentLevelID = 22;
+                }
                 loadLevel(currentLevelID);
                 if (player) player->obj.health = player->obj.maxHealth;
                 if (player) player->obj.magic = player->obj.maxMagic;
@@ -725,6 +876,13 @@ void Engine::render()
     }
     
     map.drawForeground(renderer, camera.x, camera.y);
+
+    // Draw objects that should appear behind the player (e.g., waterfall backdrops)
+    for (auto* mo : objects) {
+        if (!mo) continue;
+        if (mo->drawBehind) mo->draw(renderer, camera.x, camera.y, map);
+    }
+
     for (auto* o : orc)
         o->draw(renderer, camera.x, camera.y);
 
@@ -733,7 +891,7 @@ void Engine::render()
         f->draw(renderer, camera.x, camera.y);
     
     for (auto* mo : objects) {
-        if (!mo) continue;
+        //if (!mo) continue;
         if (mo->getHeight() <= Map::TILE_SIZE) mo->draw(renderer, camera.x, camera.y, map);
     }
 
@@ -755,6 +913,8 @@ void Engine::render()
     // Draw tall/overlay objects after map so they appear on top of player/tiles
     for (auto* mo : objects) {
         if (!mo) continue;
+        // Objects that were drawn behind the player are already rendered earlier
+        if (mo->drawBehind) continue;
         if (mo->getHeight() > Map::TILE_SIZE) mo->draw(renderer, camera.x, camera.y, map);
     }
 
@@ -822,6 +982,10 @@ void Engine::loadLevel(int levelID)
     if (entryDirection == RIGHT) portalToFind = LEFT;
     if (entryDirection == UP)    portalToFind = DOWN;
     if (entryDirection == DOWN)  portalToFind = UP;
+    // For vertical wrap transitions, find the opposite wrap tile in the destination
+    if (entryDirection == WRAPD) portalToFind = WRAPU;
+    if (entryDirection == WRAPU) portalToFind = WRAPD;
+    if (entryDirection == WRAP)  portalToFind = WRAP;
 
     // 1️⃣ Spawn relative to opposite portal
     if (portalToFind != -1)
@@ -839,7 +1003,11 @@ void Engine::loadLevel(int levelID)
                     if (portalToFind == LEFT)  spawnX += TILE_SIZE;
                     if (portalToFind == RIGHT) spawnX -= TILE_SIZE;
                     if (portalToFind == UP)    spawnY += TILE_SIZE;
-                    if (portalToFind == DOWN)  spawnY -= TILE_SIZE;
+                    if (portalToFind == DOWN)  spawnY;
+                    if (portalToFind == WRAPU)  spawnX;
+                    if (portalToFind == WRAPD)  spawnX;
+                    if (portalToFind == WRAP && playerLastFacing)  spawnX += TILE_SIZE;
+                    if (portalToFind == WRAP && !playerLastFacing)  spawnX -= TILE_SIZE;
 
                     placed = true;
 
@@ -966,6 +1134,48 @@ void Engine::loadLevel(int levelID)
             orc.push_back(new Orc(renderer,"Assets/Sprites/orc.png",12, 16,px, py , 20));
             orcNum++;
             break;
+        case Map::SPAWN_CHECKPOINT:
+        {
+            Checkpoint* cp = new Checkpoint(sx, sy, s.tileIndex);
+            cp->setLevel(levelID);
+            // Only move the player's spawn to the checkpoint position if we're currently respawning from a checkpoint
+            // (i.e., the player died and selected Restart). This prevents normal portal transitions from using checkpoints.
+            if (respawnFromCheckpoint && levelID == lastCheckpointLevel) {
+                player->obj.x = float(sx * Map::TILE_SIZE);
+                player->obj.y = float(sy * Map::TILE_SIZE);
+            }
+            objects.push_back(cp);
+        }
+        break;
+
+        case Map::SPAWN_WATERFALL_LONG:
+        {
+            // Narrow tall waterfall (16x32, 4 frames) that sits behind the player
+            MapObject* mo = new MapObject(sx, sy, s.tileIndex);
+            mo->setSize(16, 32);
+            if (!mo->loadAnimation(renderer, "Assets/Sprites/waterfall_long.png", 16, 32, 4, 0, 0, 0, 16, 32, 12)) {
+                SDL_Log("Failed to load waterfall_long animation");
+            }
+            // move up by 16px so bottom aligns with tile
+            mo->offsetPosition(0, -16);
+            mo->drawBehind = true;
+            objects.push_back(mo);
+        }
+        break;
+        case Map::SPAWN_DUNGEON_WATER:
+        {
+            // Dungeon water sprite that should appear in front of the player
+            MapObject* mo = new MapObject(sx, sy, s.tileIndex);
+            mo->setSize(16, 48);
+            if (!mo->loadAnimation(renderer, "Assets/Sprites/dungeon_water.png", 16, 48, 4, 0, 0, 0, 16, 48, 12)) {
+                SDL_Log("Failed to load dungeon_water animation");
+            }
+            // Move up 32px so bottom aligns with tile
+            mo->offsetPosition(0, -32);
+            // default drawBehind is false, so this will render in front of the player
+            objects.push_back(mo);
+        }
+        break;
         case Map::SPAWN_WATER:
         {
             // Create a generic MapObject and load a water animation for it
@@ -988,6 +1198,22 @@ void Engine::loadLevel(int levelID)
                 SDL_Log("Failed to load waterfall animation");
             }
             //mo->offsetPosition(-48-16, -64-16);
+            objects.push_back(mo);
+        }
+        break;
+
+        case Map::SPAWN_WATERFALL:
+        {
+            // Create a generic MapObject and load a narrow waterfall animation (16x48, 4 frames)
+            MapObject* mo = new MapObject(sx, sy, s.tileIndex);
+            mo->setSize(16, 48);
+            if (!mo->loadAnimation(renderer, "Assets/Sprites/waterfall.png", 16, 48, 4, 0, 0, 0, 16, 48, 12)) {
+                SDL_Log("Failed to load waterfall animation");
+            }
+            // Sprite is taller (48) than tile (16). Move object up so bottoms align (48 - 16 = 32 px)
+            mo->offsetPosition(0, -32);
+            // Draw this waterfall behind the player
+            mo->drawBehind = true;
             objects.push_back(mo);
         }
         break;
@@ -1054,6 +1280,12 @@ void Engine::loadLevel(int levelID)
             }
         }
         break;
+        case Map::SPAWN_CRATE:
+        {
+            Crate* c = new Crate(sx, sy, s.tileIndex);
+            objects.push_back(c);
+        }
+        break;
         default:
             // unhandled spawn types are ignored
             break;
@@ -1065,8 +1297,14 @@ void Engine::loadLevel(int levelID)
     // ----------------------------------------
     currentLevelID = levelID;
     entryDirection = -1;
-    lastStartPosX = spawnX;
-    lastStartPosY = spawnY;
+    // set default last start pos to spawn unless we are resuming at a checkpoint
+    if (respawnFromCheckpoint && lastCheckpointLevel == levelID) {
+        // position was set earlier when spawning checkpoint objects; keep it and then clear the respawn flag
+        respawnFromCheckpoint = false; // consume the checkpoint respawn
+    } else {
+        lastStartPosX = spawnX;
+        lastStartPosY = spawnY;
+    }
 }
 
 

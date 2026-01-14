@@ -58,6 +58,21 @@ Player::Player(SDL_Renderer* renderer,
     chargePressedLastFrame = false;
 }
 
+SDL_FRect Player::getAttackRect() const {
+    if (!obj.attacking)
+        return { 0,0,0,0 };
+
+    if (obj.attackTimer > (obj.attSpeed * 2))
+        return { 0,0,0,0 };
+
+    float w = attackHitboxWidth;
+    float h = 12.0f;
+    float x = obj.facing ? obj.x + obj.tileWidth : obj.x - w;
+    float y = obj.y + 4;
+
+    return { x, y, w, h };
+}
+
 
 void Player::input(const bool* keys) {
     int attRand = Sound::randomInt(1, 3);

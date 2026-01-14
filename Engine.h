@@ -22,6 +22,9 @@ class Potion; // forward
 #define UP    27
 #define RIGHT 28
 #define DOWN  29
+#define WRAP  25
+#define WRAPU  7
+#define WRAPD  8
 #define PORT  25
 
 class Engine {
@@ -96,6 +99,13 @@ public:
     int entryDirection = -1;
     int lastStartPosX = 0;
     int lastStartPosY = 0;
+    int lastCheckpointLevel = -1; // level of last touched checkpoint
+    // When true, loadLevel will prefer the saved checkpoint position (used only when respawning after death)
+    bool respawnFromCheckpoint = false;
+    bool playerLastFacing = false;
+    // When true, ignore held Up input until the player releases Up once. Used to avoid
+    // immediately wrapping back when arriving at a destination from a WRAPU/WRAPD transition.
+    bool ignoreWrapUp = false;
 
     float transitionTimer = 0.0f;
     const float TRANSITION_DURATION = 0.1f;
