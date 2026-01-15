@@ -96,6 +96,12 @@
     <ClInclude Include="Crate.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="InfoText.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="PressurePlate.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Engine.cpp">
@@ -177,6 +183,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Crate.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="InfoText.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="PressurePlate.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

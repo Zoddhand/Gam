@@ -13,6 +13,8 @@ public:
 
     SDL_FRect getRect() { return { x, y, float(w), float(h) }; }
 
+    bool isSolid() const override { return true; }
+
     bool movable = true; // can be pushed
     // Physics
     float velx = 0.0f;

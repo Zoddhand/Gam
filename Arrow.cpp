@@ -10,6 +10,7 @@ static SDL_Texture* s_trapArrowTex = nullptr;
 Arrow::Arrow(SDL_Renderer* renderer, float x_, float y_, float vx, float vy, bool trapSprite)
     : x(x_), y(y_), velx(vx), vely(vy)
 {
+    isTrapArrow = trapSprite;
 	y = y_ - h * 0.5f; // center vertically
     // Load shared texture once using provided renderer
     if (renderer) {

@@ -32,6 +32,8 @@ public:
     int getHeight() const { return h; }
 
     SDL_FRect getRect();
+    // If true, this object should be treated as a solid obstacle for pathing/collision
+    virtual bool isSolid() const { return false; }
     bool active = true;
 
     // If true, this object should be drawn behind the player even if it's taller than a tile.

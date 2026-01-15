@@ -1,6 +1,7 @@
 ﻿#include "GameObject.h"
 #include "Sound.h"
 #include "Engine.h"
+#include "PressurePlate.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <cmath>
@@ -269,8 +270,30 @@ void GameObject::update(Map& map)
             obj.vely = 0.0f;
             obj.onGround = true;
         } else {
+            // Not landing on normal tiles: check for thin pressure plates underneath so any GameObject can stand on them
             obj.onGround = false;
+            if (gEngine) {
+                float prevBottom = prevY + obj.tileHeight - 1;
+                float currBottom = obj.y + obj.tileHeight;
+                for (auto* mo : gEngine->objects) {
+                    if (!mo || !mo->active) continue;
+                    PressurePlate* pp = dynamic_cast<PressurePlate*>(mo);
+                    if (!pp) continue;
+                    SDL_FRect pr = pp->getRect();
+                    float plateTop = pr.y + (pr.h - 2.0f);
+                    // horizontal overlap
+                    float overlapX = std::min(obj.x + obj.tileWidth, pr.x + pr.w) - std::max(obj.x, pr.x);
+                    if (overlapX <= 0) continue;
+                    // require downward crossing of the plate top
+                    if (prevBottom < plateTop && currBottom >= plateTop && obj.vely >= 0.0f) {
+                        obj.y = plateTop - obj.tileHeight;
+                        obj.vely = 0.0f;
+                        obj.onGround = true;
+                        break;
+                    }
                 }
+            }
+        }
     }
     else if (obj.vely < 0) { // jumping / hitting ceiling
         // One-way platforms should NOT block you when going up; treat ONLY non-one-way as solid

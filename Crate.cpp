@@ -2,6 +2,8 @@
 #include <SDL3/SDL.h>
 #include "GameObject.h"
 #include "Sound.h"
+#include "Engine.h"
+#include "PressurePlate.h"
 #include <cmath>
 #include <algorithm>
 
@@ -97,7 +99,33 @@ void Crate::update(GameObject& player, Map& map)
             vely = 0.0f;
             onGround = true;
         } else {
+            // not landing on full-height tile; check for thin pressure plates underneath
             onGround = false;
+            if (gEngine) {
+                bool landedOnPlate = false;
+                float currBottom = y + h;
+                for (auto* mo : gEngine->objects) {
+                    if (!mo || !mo->active) continue;
+                    PressurePlate* pp = dynamic_cast<PressurePlate*>(mo);
+                    if (!pp) continue;
+                    SDL_FRect pr = pp->getRect();
+                    float plateTop = pr.y + (pr.h - 2.0f);
+                    // horizontal overlap check
+                    float overlapX = std::min(x + w, pr.x + pr.w) - std::max(x, pr.x);
+                    if (overlapX <= 0) continue;
+                    float prevBottom = prevY + h - 1;
+                    // require downward crossing
+                    if (prevBottom < plateTop && currBottom >= plateTop && vely >= 0.0f) {
+                        // snap crate to plate
+                        y = plateTop - h;
+                        vely = 0.0f;
+                        onGround = true;
+                        landedOnPlate = true;
+                        break;
+                    }
+                }
+                (void)landedOnPlate; // silence unused in some builds
+            }
         }
     } else if (vely < 0) {
         int colLeftTop = map.getCollision(leftTile, topTile);
@@ -130,4 +158,5 @@ void Crate::update(GameObject& player, Map& map)
         hitInvuln = 8; // short invuln so holding attack doesn't keep reapplying
         if (gSound) gSound->playSfx("clang", 128, false);
     }
-}
+    }
+

@@ -7,10 +7,12 @@
 #include "Orc.h"
 #include "MapObject.h"
 #include "FallingTrap.h"
+#include "PressurePlate.h"
 #include "Hud.h"
 #include "Sound.h"
 #include "GameOver.h"
 #include "Background.h"
+#include "InfoText.h"
 #include <unordered_set>
 
 class Menu;
@@ -76,6 +78,7 @@ public:
     Hud* hud = nullptr;
     Sound* sound = nullptr;
     Menu* menu = nullptr;
+    InfoText* infoText = nullptr;
     bool inMenu = true;
     // Debug: draw attack hitboxes
     bool debugDrawAttackRects = true;
@@ -106,6 +109,10 @@ public:
     // When true, ignore held Up input until the player releases Up once. Used to avoid
     // immediately wrapping back when arriving at a destination from a WRAPU/WRAPD transition.
     bool ignoreWrapUp = false;
+
+    // Track timestamps of last input use to determine which device was used most recently
+    uint32_t lastKeyboardUseTicks = 0;
+    uint32_t lastControllerUseTicks = 0;
 
     float transitionTimer = 0.0f;
     const float TRANSITION_DURATION = 0.1f;

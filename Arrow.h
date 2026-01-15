@@ -11,6 +11,7 @@ public:
     void draw(SDL_Renderer* renderer, int camX, int camY);
     SDL_FRect getRect() const;
     bool alive = true;
+    bool isTrapArrow = false;
 
 private:
     float x, y;

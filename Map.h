@@ -51,6 +51,7 @@ public:
     static constexpr int SPAWN_KEY = 10; // door spawn (custom)
     static constexpr int SPAWN_CHECKPOINT = 440; // checkpoint spawn (custom)
     static constexpr int SPAWN_CRATE = 24; // crate spawn
+    static constexpr int SPAWN_PRESSURE_PLATE = 12; // pressure plate spawn
 
     // Backwards-compatible aliases used elsewhere in the codebase
     static constexpr int TRAP_TILE = SPAWN_SPIKES;

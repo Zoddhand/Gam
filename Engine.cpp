@@ -10,6 +10,7 @@
 #include "Potion.h"
 #include "Checkpoint.h"
 // #include "Water.h"
+#include "PressurePlate.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <iostream>
@@ -191,6 +192,16 @@ Engine::Engine()
     } else {
         SDL_Log("Background: skipping missing directory Assets/Backgrounds/Other");
     }
+
+    // Create InfoText (used for in-world hints). Use BoldPixels.ttf as requested.
+    infoText = new InfoText(renderer, "Assets/Fonts/BoldPixels.ttf", 16);
+    // No explicit trigger rect or fade is set here — InfoText uses spawn tile id (default 5)
+    // Set preferred sizes for certain icons (e.g. keyboard icons that are 32x16)
+    infoText->setIconPreferredSize("Assets/Icons/jump_kb.png", 32, 16);
+    infoText->setIconPreferredSize("Assets/Icons/attack_kb.png", 32, 16);
+    infoText->setIconPreferredSize("Assets/Icons/special_kb.png", 32, 16);
+    infoText->setIconPreferredSize("Assets/Icons/dodge_kb.png", 32, 16);
+    infoText->setText("");
 }
 
 Engine::~Engine()
@@ -199,6 +210,7 @@ Engine::~Engine()
     if (menu) delete menu;
     if (hud) delete hud;
     if (gameOver) delete gameOver;
+    if (infoText) { delete infoText; infoText = nullptr; }
     if (sound) {
         // clear global pointer first
         gSound = nullptr;
@@ -277,14 +289,56 @@ int Engine::getNextLevelID(int dir)
 void Engine::handleEvents()
 {
     SDL_Event e;
-    while (SDL_PollEvent(&e))
-        if (e.type == SDL_EVENT_QUIT)
+    while (SDL_PollEvent(&e)) {
+        if (e.type == SDL_EVENT_QUIT) {
             running = false;
+        }
+        else if (e.type == SDL_EVENT_KEY_DOWN) {
+            // keyboard activity detected
+            lastKeyboardUseTicks = SDL_GetTicks();
+            if (infoText) infoText->setLastInputIsController(false);
+        }
+        else if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
+            // controller button pressed
+            lastControllerUseTicks = SDL_GetTicks();
+            if (infoText) infoText->setLastInputIsController(true);
+        }
+        else if (e.type == SDL_EVENT_GAMEPAD_AXIS_MOTION) {
+            // controller axis moved (stick motion)
+            lastControllerUseTicks = SDL_GetTicks();
+            if (infoText) infoText->setLastInputIsController(true);
+        }
+    }
 
     const bool* keys = SDL_GetKeyboardState(nullptr);
     // update controller polling every frame
     controller.update();
     auto cs = controller.getState();
+
+    // Track last-used input device: update InfoText only when an input is detected
+    if (infoText) {
+        bool keyboardInput = false;
+        if (keys) {
+            keyboardInput = keys[SDL_SCANCODE_A] || keys[SDL_SCANCODE_D] || keys[SDL_SCANCODE_W] || keys[SDL_SCANCODE_S] ||
+                            keys[SDL_SCANCODE_SPACE] || keys[SDL_SCANCODE_J] || keys[SDL_SCANCODE_K] ||
+                            keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_DOWN];
+        }
+        bool controllerInput = cs.connected && (cs.left || cs.right || cs.up || cs.down || cs.jump || cs.attack || cs.attackCharged);
+        uint32_t now = SDL_GetTicks();
+        if (keyboardInput) {
+            lastKeyboardUseTicks = now;
+            infoText->setLastInputIsController(false);
+        }
+        if (controllerInput) {
+            lastControllerUseTicks = now;
+            infoText->setLastInputIsController(true);
+        }
+        // If neither produced input this frame, prefer the device with the most recent timestamp
+        if (!keyboardInput && !controllerInput) {
+            if (lastControllerUseTicks > lastKeyboardUseTicks) infoText->setLastInputIsController(true);
+            else infoText->setLastInputIsController(false);
+        }
+    }
 
     // If we are currently ignoring held Up input (to avoid immediate re-wrapping),
     // clear the flag once Up is released on both keyboard and controller.
@@ -616,6 +670,33 @@ void Engine::update()
         }
 
         // Prevent passing through crates and allow pushing them by walking into them
+        // Allow landing on thin pressure plates (2px) so player can stand slightly above ground.
+        for (auto* mo : objects) {
+            if (!mo || !mo->active) continue;
+            PressurePlate* pp = dynamic_cast<PressurePlate*>(mo);
+            if (!pp) continue;
+
+            // hitbox top (anchored 2px above the tile bottom)
+            SDL_FRect pr = player->getRect();
+            SDL_FRect plateRect = pp->getRect();
+            float plateTop = plateRect.y + (plateRect.h - 2.0f); // y position of the 2px trigger
+
+            // quick horizontal overlap check
+            float overlapX = std::min(pr.x + pr.w, plateRect.x + plateRect.w) - std::max(pr.x, plateRect.x);
+            if (overlapX <= 0) continue;
+
+            // require downward crossing of the plate's top to count as landing
+            float prevBottom = prevPlayerY + player->obj.tileHeight;
+            float currBottom = pr.y + pr.h;
+            // Only snap if player was strictly above plate previously and now crosses its top while moving down
+            if (prevBottom < plateTop && currBottom >= plateTop && player->obj.vely >= 0.0f) {
+                player->obj.y = plateTop - player->obj.tileHeight;
+                player->obj.vely = 0.0f;
+                player->obj.onGround = true;
+                prevPlayerX = player->obj.x;
+            }
+        }
+
         for (auto* mo : objects) {
             if (!mo || !mo->active) continue;
             Crate* c = dynamic_cast<Crate*>(mo);
@@ -737,6 +818,40 @@ void Engine::update()
             }
         }
 
+        // If this is a trap arrow, it should also hurt other game objects (orcs and archers)
+        if (a->alive && a->isTrapArrow) {
+            SDL_FRect ar = a->getRect();
+            float attackerX = ar.x + ar.w * 0.5f;
+
+            // Check orcs
+            for (auto* o : orc) {
+                if (!o || !o->obj.alive) continue;
+                SDL_FRect orcR = o->getRect();
+                if (SDL_HasRectIntersectionFloat(&ar, &orcR)) {
+                    o->takeDamage(15.0f, attackerX, 3, 6, 30, 2.5f, -4.0f);
+                    a->alive = false;
+                    if (gSound) gSound->playSfx("arrow_impact");
+                    if (gEngine) gEngine->triggerHitstop(6);
+                    break;
+                }
+            }
+
+            // Check archers (if arrow still alive)
+            if (a->alive) {
+                for (auto* archer : archers) {
+                    if (!archer || !archer->obj.alive) continue;
+                    SDL_FRect arR = archer->getRect();
+                    if (SDL_HasRectIntersectionFloat(&ar, &arR)) {
+                        archer->takeDamage(15.0f, attackerX, 3, 6, 30, 2.5f, -4.0f);
+                        a->alive = false;
+                        if (gSound) gSound->playSfx("arrow_impact");
+                        if (gEngine) gEngine->triggerHitstop(6);
+                        break;
+                    }
+                }
+            }
+        }
+
         if (!a->alive) { delete a; it = projectiles.erase(it); }
         else ++it;
     }
@@ -808,6 +923,13 @@ void Engine::update()
 
     // update sound streams
     if (sound) sound->update();
+
+    // update infoText: supply markup and player's world X, InfoText handles positioning and visibility
+    if (infoText && player) {
+        // single call: InfoText will choose which message/icon to show based on level and input device
+        // Do not override the last-input state here — it is managed in handleEvents when input is detected.
+        infoText->updateAuto(currentLevelID, player->obj.x + player->obj.tileWidth * 0.5f, &map);
+    }
 }
 
 // --------------------------------------------------
@@ -920,6 +1042,9 @@ void Engine::render()
 
     // Draw HUD last so it's on top (include key indicator)
     if (hud && player) hud->draw(renderer, player->obj.health, player->obj.maxHealth, player->obj.magic, player->obj.maxMagic, player->hasKey);
+
+    // Draw in-world info text (after world rendering but before HUD maybe)
+    if (infoText) infoText->draw(renderer, camera);
 
     if (transitioning)
     {
@@ -1246,6 +1371,14 @@ void Engine::loadLevel(int levelID)
             objects.push_back(new Spikes(s.x, s.y, s.tileIndex));
             break;
 
+        case Map::SPAWN_PRESSURE_PLATE:
+        {
+            PressurePlate* pp = new PressurePlate(sx, sy, s.tileIndex);
+            // Pressure plate sprite should be positioned at tile top; no vertical offset necessary
+            objects.push_back(pp);
+        }
+        break;
+
         case Map::SPAWN_ARCHER:
             archers.push_back(new Archer(renderer, "Assets/Sprites/archer.png", 12, 16, px, py, 10));
             break;
@@ -1348,6 +1481,14 @@ int main(int argc, char* argv[])
     srand(static_cast<unsigned>(time(nullptr)));
 
     Engine engine;
+
+    // Request VSync on the engine's renderer (attempt to lock to display refresh, typically 60Hz)
+    if (engine.renderer) {
+        SDL_SetRenderVSync(engine.renderer, 1);
+        SDL_Log("Main: VSync requested on renderer (target ~60Hz)");
+    } else {
+        SDL_Log("Main: renderer not available to set VSync");
+    }
 
     // Load starting room
     engine.loadLevel(engine.currentLevelID);

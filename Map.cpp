@@ -5,6 +5,7 @@
 #include <fstream>
 #include <sstream>
 #include <cmath>
+#include "Engine.h"
 
 Map::Map()
 {
@@ -138,6 +139,7 @@ std::vector<Map::ObjectSpawn> Map::getObjectSpawns() const
                 t == SPAWN_SKELETON ||
                 t == SPAWN_SLIME ||
                 t == SPAWN_ARCHER ||
+                t == SPAWN_PRESSURE_PLATE ||
                 t == SPAWN_KEY ||
                 t == SPAWN_CRATE ||
                 t == SPAWN_ARROWTRAP_LEFT ||
@@ -173,6 +175,20 @@ bool Map::isSolid(int tx, int ty)
 
     // Use getCollision for consistent semantics
     int c = getCollision(tx, ty);
+    // If any active map object occupies this tile and is marked solid, treat tile as solid
+    if (gEngine) {
+        for (auto* mo : gEngine->objects) {
+            if (!mo || !mo->active) continue;
+            if (!mo->isSolid()) continue;
+            SDL_FRect r = mo->getRect();
+            int moLeft = int(r.x / TILE_SIZE);
+            int moRight = int((r.x + r.w - 1) / TILE_SIZE);
+            int moTop = int(r.y / TILE_SIZE);
+            int moBottom = int((r.y + r.h - 1) / TILE_SIZE);
+            if (tx >= moLeft && tx <= moRight && ty >= moTop && ty <= moBottom)
+                return true;
+        }
+    }
     return c != -1;
 }
 
