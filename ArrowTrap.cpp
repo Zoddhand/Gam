@@ -52,23 +52,10 @@ void ArrowTrap::update(GameObject& obj, Map& map)
     bool shootRight = (tileIndex == Map::SPAWN_ARROWTRAP_RIGHT);
     if (!shootLeft && !shootRight) return;
 
-    // Player center
-    SDL_FRect pr = obj.getRect();
-    float pCenterX = pr.x + pr.w * 0.5f;
-    float pCenterY = pr.y + pr.h * 0.5f;
-
-    // Trap bounds
+    // Trap bounds (used for plate checks below)
     SDL_FRect tr = getRect();
     float trapLeft = tr.x;
     float trapRight = tr.x + tr.w;
-
-    bool inFront = false;
-    if (shootLeft) {
-        // player passes to left of trap horizontally within same vertical band
-        inFront = (pCenterX < trapLeft) && (pCenterY > tr.y - 8 && pCenterY < tr.y + tr.h + 8);
-    } else if (shootRight) {
-        inFront = (pCenterX > trapRight) && (pCenterY > tr.y - 8 && pCenterY < tr.y + tr.h + 8);
-    }
 
     if (cooldownTimer > 0) --cooldownTimer;
     // Also check for pressure plates in front of the trap. If any plate in the trap's firing
@@ -97,7 +84,21 @@ void ArrowTrap::update(GameObject& obj, Map& map)
     // If a plate has been newly triggered (rising edge), consider that an activation event
     bool plateRising = (plateTriggeredNow && !plateWasTriggered);
 
-    bool activationNow = (inFront && !playerWasInZone) || plateRising || externalTriggered;
+    // By default traps only activate via pressure plates or explicit external calls.
+    // If autoFire is enabled for this trap, allow activation when the player/enemy
+    // passes in front (rising edge only).
+    bool inFront = false;
+    if (autoFire) {
+        // When autoFire is enabled, consider the current updater `obj` (player, orc, archer)
+        // as a valid trigger. This lets traps auto-fire at any game object when configured.
+        SDL_FRect pr = obj.getRect();
+        float pCenterX = pr.x + pr.w * 0.5f;
+        float pCenterY = pr.y + pr.h * 0.5f;
+        if (shootLeft) inFront = (pCenterX < trapLeft) && (pCenterY > tr.y - 8 && pCenterY < tr.y + tr.h + 8);
+        if (shootRight) inFront = (pCenterX > trapRight) && (pCenterY > tr.y - 8 && pCenterY < tr.y + tr.h + 8);
+    }
+
+    bool activationNow = plateRising || externalTriggered || (autoFire && inFront && !playerWasInZone);
 
     if (activationNow && cooldownTimer <= 0) {
         if (ammo > 0) {

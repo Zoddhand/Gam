@@ -37,9 +37,6 @@ void Archer::aiUpdate(Player& player, Map& map, std::vector<Arrow*>& projectiles
     float dy = (player.obj.y) - obj.y;
     float dist = std::sqrt(dx*dx + dy*dy);
 
-    bool sameLevel = std::abs(player.obj.y - obj.y) < obj.tileHeight;
-    bool playerInFront = (dx > 0 && obj.facing) || (dx < 0 && !obj.facing);
-
     // Line-of-sight check: sample along the line between archer center and player center
     auto hasLineOfSight = [&](const Player& p, Map& m)->bool {
         float sx = obj.x + obj.tileWidth*0.5f;
@@ -102,18 +99,20 @@ void Archer::aiUpdate(Player& player, Map& map, std::vector<Arrow*>& projectiles
     if (shootCooldown > 0) --shootCooldown;
 
     // --------------------
-    // Movement intent (patrol / chase) - similar to Orc
-    // --------------------
+    // Movement intent (chase player until within shooting range)
+    // Archer will move horizontally toward the player's X position while not attacking.
     if (!obj.attacking && knockbackTimer <= 0) {
-        // If player is roughly on same level and close in front, move toward them
-        if (sameLevel && std::abs(dx) < 80 && playerInFront) {
-            obj.velx = (dx < 0) ? -1.0f : 1.0f;
+        // Move toward the player until the player is within Euclidean attack range.
+        // Once inside range, stop moving and wait for line-of-sight to trigger the attack.
+        if (dist > range) {
+            obj.velx = (dx < 0) ? -chaseSpeed : chaseSpeed;
             obj.facing = obj.velx > 0;
+        } else {
+            // inside attack range — stop moving and wait for LOS to attack
+            obj.velx = 0;
+            // face the player while waiting
+            obj.facing = dx > 0;
         }
-        /*else {
-            // regular patrol
-            obj.velx = obj.facing ? 1.0f : -1.0f;
-        }*/
     } else if (!obj.attacking && knockbackTimer > 0) {
         obj.facing = obj.velx > 0;
     } else {

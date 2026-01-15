@@ -11,9 +11,22 @@ public:
 
     bool isTriggered() const { return triggered; }
 
+    enum class TargetAction {
+        NONE,
+        FIRE_ARROWTRAPS,
+        OPEN_DOOR,
+        DROP_FALLINGTRAP
+    };
+
+    void setTargetAction(TargetAction a, int tx = -1, int ty = -1) { targetAction = a; targetTx = tx; targetTy = ty; }
+    TargetAction getTargetAction() const { return targetAction; }
+
 private:
     bool triggered = false;
     bool prevTriggered = false;
+    TargetAction targetAction = TargetAction::NONE;
+    int targetTx = -1;
+    int targetTy = -1;
     int animTimer = 0;
     int animInterval = 12;
 };

@@ -24,6 +24,7 @@ private:
     int shootCooldown = 0; // frames until next shot
     const int SHOOT_COOLDOWN_MAX = 120; // 60 ticks ~ 1s
     float range = 180.0f; // pixels
+    float chaseSpeed = 1.0f; // horizontal speed when chasing player
     SDL_Renderer* rendererPtr = nullptr; // renderer for projectile creation
     bool shotFired = false; // whether arrow has been spawned in current attack animation
 };

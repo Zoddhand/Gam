@@ -21,6 +21,7 @@
 // MapObject used for simple animated tiles like water
 #include "MapObject.h"
 #include "Crate.h"
+#include <algorithm>
 
 
 static uint64_t packDoorKey(int levelID, int tx, int ty) {
@@ -790,6 +791,31 @@ void Engine::update()
     for (auto it = projectiles.begin(); it != projectiles.end(); ) {
         Arrow* a = *it;
         a->update(map);
+
+        // Early crate handling: any arrow (archer or trap) should be able to hit/push crates.
+        // Do this before player/enemy collisions so arrows interact with world objects first.
+        if (a->alive) {
+            SDL_FRect ar = a->getRect();
+            for (auto* mo : objects) {
+                if (!mo || !mo->active) continue;
+                Crate* c = dynamic_cast<Crate*>(mo);
+                if (!c) continue;
+                SDL_FRect cr = c->getRect();
+                if (SDL_HasRectIntersectionFloat(&ar, &cr) && c->movable && c->hitInvuln == 0) {
+                    float hNudge = a->isTrapArrow ? 2.0f : 4.0f;
+                    float vNudge = a->isTrapArrow ? -1.5f : -3.0f;
+                    float dir = (a->getVelX() > 0.0f) ? 1.0f : -1.0f;
+                    c->velx = dir * hNudge;
+                    if (c->onGround) c->vely = vNudge;
+                    c->hitInvuln = 8;
+                    if (gSound) gSound->playSfx("clang", 128, false);
+                    a->alive = false;
+                    if (gEngine) gEngine->triggerHitstop(6);
+                    break;
+                }
+            }
+        }
+
         // simple player collision
         if (player) {
             SDL_FRect ar = a->getRect();
@@ -850,6 +876,31 @@ void Engine::update()
                     }
                 }
             }
+
+            // For any arrow (archer or trap), also allow it to hit/push crates
+            if (a->alive) {
+                SDL_FRect ar = a->getRect();
+                for (auto* mo : objects) {
+                    if (!mo || !mo->active) continue;
+                    Crate* c = dynamic_cast<Crate*>(mo);
+                    if (!c) continue;
+                    SDL_FRect cr = c->getRect();
+                    if (SDL_HasRectIntersectionFloat(&ar, &cr) && c->movable && c->hitInvuln == 0) {
+                        float hNudge = a->isTrapArrow ? 2.0f : 4.0f;
+                        float vNudge = a->isTrapArrow ? -1.5f : -3.0f;
+                        float dir = (a->getVelX() > 0.0f) ? 1.0f : -1.0f;
+                        c->velx = dir * hNudge;
+                        if (c->onGround) c->vely = vNudge;
+                        c->hitInvuln = 8;
+                        if (gSound) gSound->playSfx("clang", 128, false);
+                        a->alive = false;
+                        if (gEngine) gEngine->triggerHitstop(6);
+                        break;
+                    }
+                }
+            }
+
+            // (trap-only block ends) - crate handling moved below for all arrows
         }
 
         if (!a->alive) { delete a; it = projectiles.erase(it); }
@@ -1374,6 +1425,34 @@ void Engine::loadLevel(int levelID)
         case Map::SPAWN_PRESSURE_PLATE:
         {
             PressurePlate* pp = new PressurePlate(sx, sy, s.tileIndex);
+            // Configure per-level plate behavior. Use levelID to decide what this plate should do.
+            // Example mapping: add cases here to customize behavior per level and per-plate coords.
+            switch (levelID) {
+            case 43:
+                // In level 22, all pressure plates fire nearby arrow traps
+                pp->setTargetAction(PressurePlate::TargetAction::FIRE_ARROWTRAPS);
+                break;
+            case 22:
+                // In level 22, all pressure plates fire nearby arrow traps
+                pp->setTargetAction(PressurePlate::TargetAction::FIRE_ARROWTRAPS);
+                break;
+            case 222:
+                // In level 24, a specific plate opens a door at (tx,ty)
+                if (sx == 12 && sy == 4) {
+                    pp->setTargetAction(PressurePlate::TargetAction::OPEN_DOOR, 13, 4);
+                }
+                break;
+            case 228:
+                // In level 28, a plate drops a falling trap at specific coords
+                if (sx == 9 && sy == 7) {
+                    pp->setTargetAction(PressurePlate::TargetAction::DROP_FALLINGTRAP, 10, 7);
+                }
+                break;
+            default:
+                // leave as NONE by default
+                break;
+            }
+
             // Pressure plate sprite should be positioned at tile top; no vertical offset necessary
             objects.push_back(pp);
         }
@@ -1383,10 +1462,18 @@ void Engine::loadLevel(int levelID)
             archers.push_back(new Archer(renderer, "Assets/Sprites/archer.png", 12, 16, px, py, 10));
             break;
         case Map::SPAWN_ARROWTRAP_LEFT:
-            objects.push_back(new ArrowTrap(renderer, s.x, s.y, s.tileIndex));
+        {
+            ArrowTrap* at = new ArrowTrap(renderer, s.x, s.y, s.tileIndex);
+            if (levelID == 44) at->setAutoFire(true);
+            objects.push_back(at);
+        }
             break;
         case Map::SPAWN_ARROWTRAP_RIGHT:
-            objects.push_back(new ArrowTrap(renderer, s.x, s.y, s.tileIndex));
+        {
+            ArrowTrap* at = new ArrowTrap(renderer, s.x, s.y, s.tileIndex);
+            if (levelID == 44) at->setAutoFire(true);
+            objects.push_back(at);
+        }
             break;
         case Map::SPAWN_DOOR:
         {

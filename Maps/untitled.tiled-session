@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "032.tmx",
+    "activeFile": "022.tmx",
     "expandedProjectPaths": [
         "."
     ],
@@ -21,7 +21,7 @@
             "scale": 8,
             "selectedLayer": 3,
             "viewCenter": {
-                "x": 286.375,
+                "x": 289.8125,
                 "y": -92.75
             }
         },
@@ -114,19 +114,19 @@
             }
         },
         "042.tmx": {
-            "scale": 2,
-            "selectedLayer": 0,
+            "scale": 8,
+            "selectedLayer": 3,
             "viewCenter": {
-                "x": 295,
-                "y": 48
+                "x": 279.0625,
+                "y": -11.875
             }
         },
         "043.tmx": {
-            "scale": 2,
-            "selectedLayer": 2,
+            "scale": 3,
+            "selectedLayer": 0,
             "viewCenter": {
-                "x": -286.5,
-                "y": 380
+                "x": -311.8333333333333,
+                "y": 275
             }
         },
         "044.tmx": {
@@ -248,7 +248,8 @@
         "032.tmx",
         "023.tmx",
         "025.tmx",
-        "028.tmx"
+        "028.tmx",
+        "039.tmx"
     ],
     "project": "untitled.tiled-project",
     "recentFiles": [

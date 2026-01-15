@@ -51,8 +51,9 @@ Arrow::~Arrow() {
 
 void Arrow::update(Map& map)
 {
-    gSound->playSfx("arrow");
+    // optional travel sound handled by caller; avoid spamming audio here
     // simple physics
+    prevX = x; prevY = y;
     y += vely;
     x += velx;
 
@@ -87,3 +88,6 @@ void Arrow::draw(SDL_Renderer* renderer, int camX, int camY)
 }
 
 SDL_FRect Arrow::getRect() const { return { x, y, (float)w, (float)h }; }
+
+float Arrow::getVelX() const { return velx; }
+float Arrow::getVelY() const { return vely; }

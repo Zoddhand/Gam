@@ -5,6 +5,8 @@
 #include "Orc.h"
 #include "Archer.h"
 #include "ArrowTrap.h"
+#include "Door.h"
+#include "FallingTrap.h"
 #include <SDL3_Image/SDL_image.h>
 #include <SDL3/SDL.h>
 
@@ -81,26 +83,52 @@ void PressurePlate::update(GameObject& obj, Map& /*map*/)
     // Update animation frame based on triggered state
     if (anim) anim->currentFrame = triggered ? 1 : 0;
 
-    // If this plate became newly triggered this frame, notify nearby arrow traps.
+    // If this plate became newly triggered this frame, perform configured action
     if (triggered && !prevTriggered) {
         if (gEngine) {
-            SDL_FRect pr = getRect();
-            float pCenterX = pr.x + pr.w * 0.5f;
-            float pCenterY = pr.y + pr.h * 0.5f;
-            for (auto* mo : gEngine->objects) {
-                if (!mo || !mo->active) continue;
-                ArrowTrap* at = dynamic_cast<ArrowTrap*>(mo);
-                if (!at) continue;
-                SDL_FRect tr = at->getRect();
-                // simple vertical band check (+/- 8 px) and horizontal in front check
-                if (pCenterY < tr.y - 8 || pCenterY > tr.y + tr.h + 8) continue;
-                float trapLeft = tr.x;
-                float trapRight = tr.x + tr.w;
-                int ti = at->getTileIndex();
-                bool shootLeft = (ti == Map::SPAWN_ARROWTRAP_LEFT);
-                bool shootRight = (ti == Map::SPAWN_ARROWTRAP_RIGHT);
-                if (shootLeft && pCenterX < trapLeft) at->triggerExternal();
-                if (shootRight && pCenterX > trapRight) at->triggerExternal();
+            // Choose action by configured targetAction
+            if (targetAction == TargetAction::FIRE_ARROWTRAPS) {
+                SDL_FRect pr = getRect();
+                float pCenterX = pr.x + pr.w * 0.5f;
+                float pCenterY = pr.y + pr.h * 0.5f;
+                for (auto* mo : gEngine->objects) {
+                    if (!mo || !mo->active) continue;
+                    ArrowTrap* at = dynamic_cast<ArrowTrap*>(mo);
+                    if (!at) continue;
+                    SDL_FRect tr = at->getRect();
+                    // simple vertical band check (+/- 8 px) and horizontal in front check
+                    if (pCenterY < tr.y - 400 || pCenterY > tr.y + tr.h + 400) continue;
+                    float trapLeft = tr.x;
+                    float trapRight = tr.x + tr.w;
+                    int ti = at->getTileIndex();
+                    bool shootLeft = (ti == Map::SPAWN_ARROWTRAP_LEFT);
+                    bool shootRight = (ti == Map::SPAWN_ARROWTRAP_RIGHT);
+                    if (shootLeft && pCenterX < trapLeft) at->triggerExternal();
+                    if (shootRight && pCenterX > trapRight) at->triggerExternal();
+                }
+            }
+            else if (targetAction == TargetAction::OPEN_DOOR) {
+                // find door at target tile coords
+                for (auto* mo : gEngine->objects) {
+                    if (!mo || !mo->active) continue;
+                    Door* d = dynamic_cast<Door*>(mo);
+                    if (!d) continue;
+                    if (d->getTileX() == targetTx && d->getTileY() == targetTy) {
+                        d->open();
+                    }
+                }
+            }
+            else if (targetAction == TargetAction::DROP_FALLINGTRAP) {
+                for (auto* ft : gEngine->fallT) {
+                    if (!ft) continue;
+                    // match by tile coords
+                    // FallingTrap stores its x/y as pixels; compute tile coords
+                    int fx = int(ft->x / Map::TILE_SIZE);
+                    int fy = int(ft->y / Map::TILE_SIZE);
+                    if (fx == targetTx && fy == targetTy) {
+                        ft->checkTrigger(*gEngine->player, gEngine->map);
+                    }
+                }
             }
         }
     }

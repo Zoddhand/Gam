@@ -12,6 +12,10 @@ public:
     SDL_FRect getRect() const;
     bool alive = true;
     bool isTrapArrow = false;
+    float prevX = 0.0f;
+    float prevY = 0.0f;
+    float getVelX() const;
+    float getVelY() const;
 
 private:
     float x, y;
